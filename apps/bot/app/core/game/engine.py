@@ -58,20 +58,25 @@ class GameEngine:
         game_id: UUID,
         chat_id: UUID,
         telegram_chat_id: int,
-        settings: GameSettings = GameSettings(),
+        settings: GameSettings | None = None,
     ) -> GameState:
         # Check if active game exists in this chat
-        active_id = await self.active_game_registry.get_active_game_by_chat(telegram_chat_id)
+        active_id = await self.active_game_registry.get_active_game_by_chat(
+            telegram_chat_id
+        )
         if active_id:
-            raise GameAlreadyExistsError(f"Game {active_id} already exists in chat {telegram_chat_id}")
+            raise GameAlreadyExistsError(
+                f"Game {active_id} already exists in chat {telegram_chat_id}"
+            )
 
+        resolved_settings = settings or GameSettings()
         state = GameState(
             game_id=game_id,
             chat_id=chat_id,
             telegram_chat_id=telegram_chat_id,
             phase=GamePhase.LOBBY,
             phase_started_at=datetime.now(timezone.utc),
-            settings=settings,
+            settings=resolved_settings,
         )
 
         await self.state_repository.save(state)
