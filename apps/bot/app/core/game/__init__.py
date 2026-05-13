@@ -4,6 +4,12 @@ from app.core.game.assignment import (
     RoleAssignmentError,
     RoleAssignmentService,
 )
+from app.core.game.actions import (
+    NightAction,
+    NightActionType,
+    deserialize_night_actions,
+    serialize_night_actions,
+)
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameEngine,
@@ -53,4 +59,8 @@ __all__ = [
     "RoleAssignmentError",
     "InvalidPlayerCountError",
     "InvalidRolePresetError",
+    "NightAction",
+    "NightActionType",
+    "serialize_night_actions",
+    "deserialize_night_actions",
 ]
