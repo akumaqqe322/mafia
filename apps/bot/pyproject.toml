@@ -1,0 +1,41 @@
+[project]
+name = "mafia-bot"
+version = "0.1.0"
+description = "Telegram Mafia Bot"
+authors = [{ name = "AI Studio", email = "zFlexxxPlay@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.4.1",
+    "sqlalchemy>=2.0.27",
+    "asyncpg>=0.29.0",
+    "redis>=5.0.1",
+    "pydantic-settings>=2.1.0",
+    "structlog>=24.1.0",
+    "alembic>=1.13.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "ruff>=0.2.1",
+    "mypy>=1.8.0",
+    "black>=24.2.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "C4", "DTZ", "T20", "RET", "ARG", "PTH", "ERA"]
+ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

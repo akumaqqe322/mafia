@@ -1,11 +1,36 @@
-<div align="center">
+# Mafia Platform Monorepo
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+This repository contains the full stack for the Telegram Mafia platform.
 
-  <h1>Built with AI Studio</h2>
+## Structure
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- `apps/web-admin`: Next.js-based administrative dashboard.
+- `apps/bot`: Python-based Telegram bot service (aiogram 3).
+- `infra`: Infrastructure configurations including Docker Compose, PostgreSQL, and Redis.
+- `docs`: Architecture and design documentation.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Running the Web Admin
 
-</div>
+The Web Admin is the primary interface for this AI Studio environment. It is configured as the default workspace and runs on port 3000.
+
+To start the development server:
+```bash
+npm run dev
+```
+
+## Running the Bot
+
+The bot is a Python service. In a local environment, you would use:
+```bash
+cd apps/bot
+pip install .
+python -m app.main
+```
+
+## Infrastructure
+
+Use Docker Compose in the `infra` directory to start supporting services:
+```bash
+cd infra
+docker-compose up -d
+```

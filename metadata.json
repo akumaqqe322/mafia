@@ -1,0 +1,6 @@
+{
+  "name": "Mafia Platform",
+  "description": "Monorepo for Telegram Mafia game with Next.js admin shell and Python bot service.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
