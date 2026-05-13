@@ -1,5 +1,7 @@
 from uuid import UUID
+
 from sqlalchemy import select
+
 from app.infrastructure.models.chat_settings import ChatSettings
 from app.infrastructure.repositories.base import BaseRepository
 

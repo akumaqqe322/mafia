@@ -1,4 +1,5 @@
 from sqlalchemy import select
+
 from app.infrastructure.models.chat import Chat
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -13,12 +14,12 @@ class ChatRepository(BaseRepository[Chat]):
         self,
         telegram_chat_id: int,
         title: str | None = None,
-        type: str = "group",
+        chat_type: str = "group",
     ) -> Chat:
         chat = Chat(
             telegram_chat_id=telegram_chat_id,
             title=title,
-            type=type,
+            type=chat_type,
         )
         self.session.add(chat)
         await self.session.flush()
@@ -28,11 +29,11 @@ class ChatRepository(BaseRepository[Chat]):
         self,
         telegram_chat_id: int,
         title: str | None = None,
-        type: str = "group",
+        chat_type: str = "group",
     ) -> Chat:
         chat = await self.get_by_telegram_chat_id(telegram_chat_id)
         if chat:
             chat.title = title
-            chat.type = type
+            chat.type = chat_type
             return chat
-        return await self.create(telegram_chat_id, title, type)
+        return await self.create(telegram_chat_id, title, chat_type)

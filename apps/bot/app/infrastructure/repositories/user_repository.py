@@ -1,4 +1,5 @@
 from sqlalchemy import select
+
 from app.infrastructure.models.user import User
 from app.infrastructure.repositories.base import BaseRepository
 
