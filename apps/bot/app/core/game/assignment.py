@@ -42,7 +42,8 @@ class RoleAssignmentService:
             # Validate role count
             if count <= 0:
                 raise InvalidRolePresetError(
-                    f"Role {role_id} in preset {preset.id} must have count > 0, but got {count}."
+                    f"Role {role_id} in preset {preset.id} "
+                    f"must have count > 0, but got {count}."
                 )
 
             # Validate role existence and mode compatibility
@@ -52,7 +53,8 @@ class RoleAssignmentService:
                 and not role_meta.available_in_competitive
             ):
                 raise InvalidRolePresetError(
-                    f"Role {role_id} is not available in Competitive mode but used in preset {preset.id}"
+                    f"Role {role_id} is not available in "
+                    f"Competitive mode but used in preset {preset.id}"
                 )
 
             for _ in range(count):

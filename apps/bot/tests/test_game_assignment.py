@@ -5,7 +5,7 @@ from app.core.game.assignment import (
     InvalidRolePresetError,
     RoleAssignmentService,
 )
-from app.core.game.roles import MatchMode, RoleId, RolePreset, PresetRegistry
+from app.core.game.roles import MatchMode, PresetRegistry, RoleId, RolePreset
 
 
 def test_build_role_deck_competitive_5_players() -> None:
