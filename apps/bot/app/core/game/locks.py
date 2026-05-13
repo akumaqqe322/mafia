@@ -6,7 +6,7 @@ from uuid import UUID
 
 class GameLockManager:
     """Manages in-process locks for game state mutations."""
-    
+
     def __init__(self) -> None:
         self._locks: dict[UUID, asyncio.Lock] = {}
         self._registry_lock = asyncio.Lock()
