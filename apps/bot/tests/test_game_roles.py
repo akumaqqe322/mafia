@@ -1,5 +1,4 @@
 import typing
-from uuid import uuid4
 
 import pytest
 
@@ -38,11 +37,8 @@ def test_role_registry_list_for_mode_party() -> None:
     party_roles = RoleRegistry.list_for_mode(MatchMode.PARTY)
     role_ids = [r.id for r in party_roles]
 
-    # Party should have all roles
-    assert RoleId.DON in role_ids
-    assert RoleId.MANIAC in role_ids
-    assert RoleId.KAMIKAZE in role_ids
-    assert len(role_ids) > 5
+    # Party should have all roles defined in RoleId enum
+    assert set(role_ids) == set(RoleId)
 
 
 def test_kamikaze_side() -> None:
