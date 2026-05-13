@@ -1,0 +1,69 @@
+import asyncio
+import logging
+from datetime import datetime, timezone
+
+from app.core.game.engine import GameEngine, GameEngineException
+from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
+from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
+
+logger = logging.getLogger(__name__)
+
+
+class PhaseWorker:
+    def __init__(
+        self,
+        game_engine: GameEngine,
+        state_repository: RedisGameStateRepository,
+        active_game_registry: ActiveGameRegistry,
+        poll_interval_sec: float = 1.0,
+    ) -> None:
+        self.game_engine = game_engine
+        self.state_repository = state_repository
+        self.active_game_registry = active_game_registry
+        self.poll_interval_sec = poll_interval_sec
+        self._is_running = False
+
+    async def tick(self, now: datetime | None = None) -> int:
+        """
+        Processes one iteration of active games.
+        Returns the number of games advanced to next phase.
+        """
+        current_time = now or datetime.now(timezone.utc)
+        game_ids = await self.active_game_registry.list_active_games()
+        advanced_count = 0
+
+        for game_id in game_ids:
+            try:
+                state = await self.state_repository.get(game_id)
+                if not state:
+                    continue
+
+                if state.phase_end_at is None:
+                    continue
+
+                if state.phase_end_at <= current_time:
+                    logger.info(f"Advancing phase for game {game_id} (expired at {state.phase_end_at})")
+                    await self.game_engine.advance_phase(game_id)
+                    advanced_count += 1
+            except GameEngineException as e:
+                logger.error(f"Error advancing game {game_id}: {e}")
+            except Exception as e:
+                logger.exception(f"Unexpected error in PhaseWorker for game {game_id}: {e}")
+
+        return advanced_count
+
+    async def start(self) -> None:
+        """Starts the main worker loop."""
+        if self._is_running:
+            return
+
+        self._is_running = True
+        logger.info("PhaseWorker started")
+        while self._is_running:
+            await self.tick()
+            await asyncio.sleep(self.poll_interval_sec)
+
+    def stop(self) -> None:
+        """Stops the main worker loop."""
+        self._is_running = False
+        logger.info("PhaseWorker stopped")
