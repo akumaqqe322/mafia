@@ -23,6 +23,11 @@ class PhaseWorker:
         self.poll_interval_sec = poll_interval_sec
         self._is_running = False
 
+    @property
+    def is_running(self) -> bool:
+        """Returns whether the worker loop is running."""
+        return self._is_running
+
     async def tick(self, now: datetime | None = None) -> int:
         """
         Processes one iteration of active games.

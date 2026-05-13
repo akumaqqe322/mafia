@@ -1,6 +1,6 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-import asyncio
 
 import pytest
 
@@ -136,4 +136,4 @@ async def test_phase_worker_start_stop(phase_worker: PhaseWorker) -> None:
     phase_worker.stop()
 
     await asyncio.wait_for(task, timeout=1.0)
-    assert not phase_worker._is_running
+    assert not phase_worker.is_running
