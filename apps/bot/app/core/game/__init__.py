@@ -1,3 +1,9 @@
+from app.core.game.assignment import (
+    InvalidPlayerCountError,
+    InvalidRolePresetError,
+    RoleAssignmentError,
+    RoleAssignmentService,
+)
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameEngine,
@@ -41,4 +47,8 @@ __all__ = [
     "RolePreset",
     "RoleRegistry",
     "PresetRegistry",
+    "RoleAssignmentService",
+    "RoleAssignmentError",
+    "InvalidPlayerCountError",
+    "InvalidRolePresetError",
 ]
