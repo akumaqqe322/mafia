@@ -1,7 +1,6 @@
 import redis.asyncio as redis
 import structlog
 
-from app.core.config import get_settings
 
 log = structlog.get_logger()
 
@@ -23,5 +22,4 @@ class RedisClient:
         log.info("Redis connection closed")
 
 
-settings = get_settings()
 # No global redis_client instance here

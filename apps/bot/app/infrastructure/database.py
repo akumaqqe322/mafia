@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.config import get_settings
-
 log = structlog.get_logger()
 
 
@@ -48,5 +46,4 @@ class Database:
                 await session.close()
 
 
-settings = get_settings()
 # No global db instance here
