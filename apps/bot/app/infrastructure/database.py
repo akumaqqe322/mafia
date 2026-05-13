@@ -49,4 +49,4 @@ class Database:
 
 
 settings = get_settings()
-db = Database(settings.DATABASE_URL)
+# No global db instance here

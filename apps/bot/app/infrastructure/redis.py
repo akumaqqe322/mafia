@@ -24,4 +24,4 @@ class RedisClient:
 
 
 settings = get_settings()
-redis_client = RedisClient(settings.REDIS_URL)
+# No global redis_client instance here

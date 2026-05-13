@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher
 from app.bot.handlers import router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.infrastructure.container import container
+from app.infrastructure.container import Container
 
 
 async def main() -> None:
@@ -14,6 +14,9 @@ async def main() -> None:
     setup_logging()
     log = structlog.get_logger()
     settings = get_settings()
+
+    # Initialize container with settings
+    container = Container(settings)
 
     # Check infrastructure
     await container.db.check_connection()
