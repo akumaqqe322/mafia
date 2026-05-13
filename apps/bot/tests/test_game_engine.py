@@ -227,6 +227,8 @@ async def test_advance_phase_flow(game_engine: GameEngine) -> None:
     state = await game_engine.advance_phase(game_id)
     assert state.phase == GamePhase.DAY
     assert state.version == 8
+    assert state.phase_end_at is not None
+    assert state.phase_started_at is not None
     duration = (state.phase_end_at - state.phase_started_at).total_seconds()
     assert abs(duration - state.settings.day_duration_sec) < 0.1
 
@@ -234,6 +236,8 @@ async def test_advance_phase_flow(game_engine: GameEngine) -> None:
     state = await game_engine.advance_phase(game_id)
     assert state.phase == GamePhase.VOTING
     assert state.version == 9
+    assert state.phase_end_at is not None
+    assert state.phase_started_at is not None
     duration = (state.phase_end_at - state.phase_started_at).total_seconds()
     assert abs(duration - state.settings.voting_duration_sec) < 0.1
 
@@ -241,6 +245,8 @@ async def test_advance_phase_flow(game_engine: GameEngine) -> None:
     state = await game_engine.advance_phase(game_id)
     assert state.phase == GamePhase.NIGHT
     assert state.version == 10
+    assert state.phase_end_at is not None
+    assert state.phase_started_at is not None
     duration = (state.phase_end_at - state.phase_started_at).total_seconds()
     assert abs(duration - state.settings.night_duration_sec) < 0.1
 
@@ -251,6 +257,19 @@ async def test_advance_phase_invalid_lobby(game_engine: GameEngine) -> None:
     await game_engine.create_game(game_id, uuid4(), 123)
 
     with pytest.raises(InvalidGamePhaseError, match="Cannot advance from lobby"):
+        await game_engine.advance_phase(game_id)
+
+
+@pytest.mark.asyncio
+async def test_advance_phase_invalid_finished(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    state = await game_engine.create_game(game_id, uuid4(), 123)
+
+    # Manual transition to FINISHED
+    state.phase = GamePhase.FINISHED
+    await game_engine.state_repository.save(state)
+
+    with pytest.raises(InvalidGamePhaseError, match="Cannot advance from finished"):
         await game_engine.advance_phase(game_id)
 
 
