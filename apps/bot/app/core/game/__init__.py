@@ -11,6 +11,7 @@ from app.core.game.engine import (
     GameFullError,
     GameNotFoundError,
     InvalidGamePhaseError,
+    NotEnoughPlayersError,
     PlayerAlreadyInGameError,
     PlayerNotInGameError,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "GameFullError",
     "PlayerNotInGameError",
     "InvalidGamePhaseError",
+    "NotEnoughPlayersError",
     "MatchMode",
     "RoleSide",
     "RoleId",

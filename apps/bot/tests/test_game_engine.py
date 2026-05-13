@@ -8,10 +8,13 @@ from app.core.game.engine import (
     GameEngine,
     GameFullError,
     GameNotFoundError,
+    InvalidGamePhaseError,
+    NotEnoughPlayersError,
     PlayerAlreadyInGameError,
     PlayerNotInGameError,
 )
 from app.core.game.locks import GameLockManager
+from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase, GameSettings
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import (
@@ -147,3 +150,57 @@ async def test_game_not_found_errors(game_engine: GameEngine) -> None:
 
     with pytest.raises(GameNotFoundError):
         await game_engine.cancel_game(game_id)
+
+
+@pytest.mark.asyncio
+async def test_start_game_success(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    
+    # Add 5 players for competitive_classic_5_6
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"Player {i}")
+        
+    state = await game_engine.start_game(game_id, "competitive_classic_5_6")
+    
+    assert state.phase == GamePhase.NIGHT
+    assert state.phase_end_at is not None
+    assert all(p.role is not None for p in state.players)
+    
+    roles = [p.role for p in state.players]
+    assert roles.count(RoleId.MAFIA.value) == 1
+    assert roles.count(RoleId.SHERIFF.value) == 1
+    assert roles.count(RoleId.DOCTOR.value) == 1
+    assert roles.count(RoleId.CIVILIAN.value) == 2
+    assert state.version > 1
+
+
+@pytest.mark.asyncio
+async def test_start_game_not_enough_players(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    await game_engine.join_game(game_id, uuid4(), 456, "P1")
+    
+    with pytest.raises(NotEnoughPlayersError):
+        await game_engine.start_game(game_id, "competitive_classic_5_6")
+
+
+@pytest.mark.asyncio
+async def test_start_game_invalid_phase(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    
+    # Start it once (effectively, though we need players)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+    await game_engine.start_game(game_id, "competitive_classic_5_6")
+    
+    # Try starting again while in NIGHT phase
+    with pytest.raises(InvalidGamePhaseError):
+        await game_engine.start_game(game_id, "competitive_classic_5_6")
+
+
+@pytest.mark.asyncio
+async def test_start_game_not_found(game_engine: GameEngine) -> None:
+    with pytest.raises(GameNotFoundError):
+        await game_engine.start_game(uuid4(), "competitive_classic_5_6")

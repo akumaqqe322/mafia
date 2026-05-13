@@ -1,7 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import random
 from uuid import UUID
 
+from app.core.game.assignment import RoleAssignmentService
 from app.core.game.locks import GameLockManager
+from app.core.game.roles import PresetRegistry
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
@@ -39,6 +42,11 @@ class PlayerNotInGameError(GameEngineException):
 
 class InvalidGamePhaseError(GameEngineException):
     """Game is in invalid phase for this action."""
+    pass
+
+
+class NotEnoughPlayersError(GameEngineException):
+    """Not enough players to start the game."""
     pass
 
 
@@ -110,6 +118,43 @@ class GameEngine:
                 display_name=display_name,
             )
             state.players.append(player)
+            state.version += 1
+
+            await self.state_repository.save(state)
+            return state
+
+    async def start_game(self, game_id: UUID, preset_id: str) -> GameState:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase != GamePhase.LOBBY:
+                raise InvalidGamePhaseError(f"Cannot start game from {state.phase} phase")
+
+            preset = PresetRegistry.get_by_id(preset_id)
+            players_count = len(state.players)
+
+            if players_count < preset.min_players:
+                raise NotEnoughPlayersError(
+                    f"Not enough players: {players_count} < {preset.min_players}"
+                )
+
+            # Note: RoleAssignmentService.build_role_deck already checks max_players
+            deck = RoleAssignmentService.build_role_deck(preset, players_count)
+
+            # Shuffle deck using cryptographically secure randomizer
+            random.SystemRandom().shuffle(deck)
+
+            # Assign roles to players
+            for i, player in enumerate(state.players):
+                player.role = deck[i].value
+
+            # Update state transitions
+            now = datetime.now(timezone.utc)
+            state.phase = GamePhase.NIGHT
+            state.phase_started_at = now
+            state.phase_end_at = now + timedelta(seconds=state.settings.night_duration_sec)
             state.version += 1
 
             await self.state_repository.save(state)
