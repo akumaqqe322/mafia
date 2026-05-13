@@ -160,6 +160,39 @@ class GameEngine:
             await self.state_repository.save(state)
             return state
 
+    async def advance_phase(self, game_id: UUID) -> GameState:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase in (GamePhase.LOBBY, GamePhase.FINISHED):
+                raise InvalidGamePhaseError(f"Cannot advance from {state.phase} phase")
+
+            now = datetime.now(timezone.utc)
+            duration_sec: int
+
+            if state.phase == GamePhase.NIGHT:
+                state.phase = GamePhase.DAY
+                duration_sec = state.settings.day_duration_sec
+            elif state.phase == GamePhase.DAY:
+                state.phase = GamePhase.VOTING
+                duration_sec = state.settings.voting_duration_sec
+            elif state.phase == GamePhase.VOTING:
+                state.phase = GamePhase.NIGHT
+                duration_sec = state.settings.night_duration_sec
+            else:
+                raise InvalidGamePhaseError(
+                    f"Phase {state.phase} is not supported for auto-advance"
+                )
+
+            state.phase_started_at = now
+            state.phase_end_at = now + timedelta(seconds=duration_sec)
+            state.version += 1
+
+            await self.state_repository.save(state)
+            return state
+
     async def leave_game(self, game_id: UUID, user_id: UUID) -> GameState:
         async with self.lock_manager.lock(game_id):
             state = await self.state_repository.get(game_id)

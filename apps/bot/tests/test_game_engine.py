@@ -209,3 +209,52 @@ async def test_start_game_invalid_phase(game_engine: GameEngine) -> None:
 async def test_start_game_not_found(game_engine: GameEngine) -> None:
     with pytest.raises(GameNotFoundError):
         await game_engine.start_game(uuid4(), "competitive_classic_5_6")
+
+
+@pytest.mark.asyncio
+async def test_advance_phase_flow(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    # Starts in LOBBY -> Start Game -> NIGHT
+    state = await game_engine.start_game(game_id, "competitive_classic_5_6")
+    assert state.phase == GamePhase.NIGHT
+    assert state.version == 7
+
+    # NIGHT -> DAY
+    state = await game_engine.advance_phase(game_id)
+    assert state.phase == GamePhase.DAY
+    assert state.version == 8
+    duration = (state.phase_end_at - state.phase_started_at).total_seconds()
+    assert abs(duration - state.settings.day_duration_sec) < 0.1
+
+    # DAY -> VOTING
+    state = await game_engine.advance_phase(game_id)
+    assert state.phase == GamePhase.VOTING
+    assert state.version == 9
+    duration = (state.phase_end_at - state.phase_started_at).total_seconds()
+    assert abs(duration - state.settings.voting_duration_sec) < 0.1
+
+    # VOTING -> NIGHT
+    state = await game_engine.advance_phase(game_id)
+    assert state.phase == GamePhase.NIGHT
+    assert state.version == 10
+    duration = (state.phase_end_at - state.phase_started_at).total_seconds()
+    assert abs(duration - state.settings.night_duration_sec) < 0.1
+
+
+@pytest.mark.asyncio
+async def test_advance_phase_invalid_lobby(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+
+    with pytest.raises(InvalidGamePhaseError, match="Cannot advance from lobby"):
+        await game_engine.advance_phase(game_id)
+
+
+@pytest.mark.asyncio
+async def test_advance_phase_not_found(game_engine: GameEngine) -> None:
+    with pytest.raises(GameNotFoundError):
+        await game_engine.advance_phase(uuid4())
