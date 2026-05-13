@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, Set
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,8 +14,8 @@ from app.infrastructure.repositories.redis_game_repository import (
 
 class FakeRedisRawClient:
     def __init__(self) -> None:
-        self.data: Dict[str, str | bytes] = {}
-        self.sets: Dict[str, Set[str | bytes]] = {}
+        self.data: dict[str, str | bytes] = {}
+        self.sets: dict[str, set[str | bytes]] = {}
 
     async def set(self, key: str, value: str | bytes) -> None:
         self.data[key] = value
@@ -30,18 +30,18 @@ class FakeRedisRawClient:
     async def exists(self, key: str) -> int:
         return 1 if key in self.data or key in self.sets else 0
 
-    async def sadd(self, key: str, value: str) -> None:
+    async def sadd(self, key: str, value: str | bytes) -> None:
         if key not in self.sets:
             self.sets[key] = set()
         val: str | bytes = value.encode("utf-8") if isinstance(value, str) else value
         self.sets[key].add(val)
 
-    async def srem(self, key: str, value: str) -> None:
+    async def srem(self, key: str, value: str | bytes) -> None:
         if key in self.sets:
             val: str | bytes = value.encode("utf-8") if isinstance(value, str) else value
             self.sets[key].discard(val)
 
-    async def smembers(self, key: str) -> Set[str | bytes]:
+    async def smembers(self, key: str) -> set[str | bytes]:
         return self.sets.get(key, set())
 
 
