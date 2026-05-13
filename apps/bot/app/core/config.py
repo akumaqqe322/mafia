@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,6 +9,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"
     LOG_LEVEL: str = "INFO"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

@@ -1,15 +1,16 @@
 import asyncio
 import structlog
 from aiogram import Bot, Dispatcher
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.bot.handlers import router
 from app.infrastructure.container import container
 
-async def main():
+async def main() -> None:
     # Setup logging
     setup_logging()
     log = structlog.get_logger()
+    settings = get_settings()
 
     # Check infrastructure
     await container.db.check_connection()
