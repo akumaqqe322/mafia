@@ -23,7 +23,7 @@ def test_night_action_creation() -> None:
         actor_role=RoleId.MAFIA,
         action_type=NightActionType.KILL,
         target_user_id=target_id,
-        created_at=created_at
+        created_at=created_at,
     )
 
     assert action.actor_user_id == actor_id
@@ -43,7 +43,7 @@ def test_night_action_naive_datetime_fails() -> None:
             actor_role=RoleId.MAFIA,
             action_type=NightActionType.KILL,
             target_user_id=uuid4(),
-            created_at=naive_dt
+            created_at=naive_dt,
         )
 
 
@@ -58,15 +58,15 @@ def test_serialization_deserialization() -> None:
             actor_role=RoleId.MAFIA,
             action_type=NightActionType.KILL,
             target_user_id=target1,
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         ),
         NightAction(
             actor_user_id=actor2,
             actor_role=RoleId.DOCTOR,
             action_type=NightActionType.HEAL,
             target_user_id=actor1,
-            created_at=datetime.now(timezone.utc)
-        )
+            created_at=datetime.now(timezone.utc),
+        ),
     ]
 
     serialized = serialize_night_actions(actions)
@@ -97,6 +97,6 @@ def test_target_can_be_none() -> None:
         actor_role=RoleId.MANIAC,
         action_type=NightActionType.OBSERVE,
         target_user_id=None,
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     assert action.target_user_id is None

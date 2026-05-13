@@ -26,17 +26,21 @@ class NightAction(BaseModel):
     @field_validator("created_at")
     @classmethod
     def validate_timezone(cls, v: datetime) -> datetime:
-        if v.tzinfo is None:
+        if v.tzinfo is None or v.utcoffset() is None:
             raise ValueError("datetime must be timezone-aware")
         return v
 
 
-def serialize_night_actions(actions: list[NightAction]) -> dict[str, dict[str, object]]:
+def serialize_night_actions(
+    actions: list[NightAction],
+) -> dict[str, dict[str, object]]:
     """Serializes a list of night actions into a dictionary where the key is the actor's user ID."""
     return {str(a.actor_user_id): a.model_dump(mode="json") for a in actions}
 
 
-def deserialize_night_actions(data: dict[str, dict[str, object]]) -> list[NightAction]:
+def deserialize_night_actions(
+    data: dict[str, dict[str, object]] | None,
+) -> list[NightAction]:
     """Deserializes a dictionary of night actions into a list of NightAction objects."""
     if not data:
         return []
