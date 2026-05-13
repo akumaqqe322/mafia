@@ -30,11 +30,7 @@ class RoleAssignmentService:
                 f"but {players_count} were provided."
             )
 
-        # 2. Validate reward eligibility vs mode
-        if preset.reward_eligible and preset.mode != MatchMode.COMPETITIVE:
-            raise InvalidRolePresetError(
-                f"Preset {preset.id} marked as reward_eligible but mode is {preset.mode}"
-            )
+        # 2. (Deprecated reward_eligible block removed)
 
         # 3. Calculate used slots
         deck: list[RoleId] = []
@@ -48,13 +44,10 @@ class RoleAssignmentService:
 
             # Validate role existence and mode compatibility
             role_meta = RoleRegistry.get(role_id)
-            if (
-                preset.mode == MatchMode.COMPETITIVE
-                and not role_meta.available_in_competitive
-            ):
+            if preset.mode not in role_meta.available_in_modes:
                 raise InvalidRolePresetError(
                     f"Role {role_id} is not available in "
-                    f"Competitive mode but used in preset {preset.id}"
+                    f"{preset.mode} mode but used in preset {preset.id}"
                 )
 
             for _ in range(count):

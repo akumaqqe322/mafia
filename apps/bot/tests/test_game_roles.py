@@ -15,7 +15,7 @@ def test_role_registry_get_success() -> None:
     civilian = RoleRegistry.get(RoleId.CIVILIAN)
     assert civilian.id == RoleId.CIVILIAN
     assert civilian.side == RoleSide.CIVILIAN
-    assert civilian.available_in_competitive is True
+    assert MatchMode.CLASSIC in civilian.available_in_modes
 
 
 def test_role_registry_get_not_found() -> None:
@@ -24,21 +24,22 @@ def test_role_registry_get_not_found() -> None:
         RoleRegistry.get(typing.cast(RoleId, "non_existent_role"))
 
 
-def test_role_registry_list_for_mode_competitive_v1() -> None:
-    comp_roles = RoleRegistry.list_for_mode(MatchMode.COMPETITIVE)
-    role_ids = [r.id for r in comp_roles]
+def test_role_registry_list_for_mode_classic() -> None:
+    classic_roles = RoleRegistry.list_for_mode(MatchMode.CLASSIC)
+    role_ids = [r.id for r in classic_roles]
 
-    # Competitive v1 MUST include only these 4 roles
-    allowed_v1 = {RoleId.CIVILIAN, RoleId.MAFIA, RoleId.SHERIFF, RoleId.DOCTOR}
-    assert set(role_ids) == allowed_v1
+    # Classic mode contains only balance core
+    allowed_classic = {RoleId.CIVILIAN, RoleId.MAFIA, RoleId.SHERIFF, RoleId.DOCTOR}
+    assert set(role_ids) == allowed_classic
 
 
-def test_role_registry_list_for_mode_party() -> None:
-    party_roles = RoleRegistry.list_for_mode(MatchMode.PARTY)
-    role_ids = [r.id for r in party_roles]
+def test_role_registry_list_for_mode_full_house() -> None:
+    full_roles = RoleRegistry.list_for_mode(MatchMode.FULL_HOUSE)
+    role_ids = [r.id for r in full_roles]
 
-    # Party should have all roles defined in RoleId enum
-    assert set(role_ids) == set(RoleId)
+    # Full House contains (almost) everything
+    assert RoleId.LAWYER in role_ids
+    assert RoleId.KAMIKAZE in role_ids
 
 
 def test_kamikaze_side() -> None:
@@ -51,22 +52,22 @@ def test_presets_registration() -> None:
     assert len(presets) >= 3
 
     ids = [p.id for p in presets]
-    assert "competitive_classic_5_6" in ids
-    assert "party_extended" in ids
+    assert "classic_5_6" in ids
+    assert "full_house_16_20" in ids
 
 
-def test_competitive_preset_rules() -> None:
-    preset = PresetRegistry.get_by_id("competitive_classic_7_9")
-    assert preset.mode == MatchMode.COMPETITIVE
-    assert preset.reward_eligible is True
+def test_classic_preset_rules() -> None:
+    preset = PresetRegistry.get_by_id("classic_7_10")
+    assert preset.mode == MatchMode.CLASSIC
+    assert preset.rewards_enabled is True
     assert preset.role_counts[RoleId.MAFIA] == 2
 
 
-def test_party_preset_rules() -> None:
-    preset = PresetRegistry.get_by_id("party_extended")
-    assert preset.mode == MatchMode.PARTY
-    assert preset.reward_eligible is False
-    assert RoleId.MANIAC in preset.role_counts
+def test_full_house_preset_rules() -> None:
+    preset = PresetRegistry.get_by_id("full_house_16_20")
+    assert preset.mode == MatchMode.FULL_HOUSE
+    assert preset.rewards_enabled is True
+    assert RoleId.LAWYER in preset.role_counts
 
 
 def test_preset_registry_get_not_found() -> None:

@@ -58,7 +58,7 @@ async def test_tick_advances_expired_game(
     for i in range(5):
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
 
-    await game_engine.start_game(game_id, "competitive_classic_5_6")
+    await game_engine.start_game(game_id, "classic_5_6")
 
     # Manually set phase_end_at to the past
     state = await game_engine.state_repository.get(game_id)
@@ -85,7 +85,8 @@ async def test_tick_does_not_advance_future_game(
     for i in range(5):
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
 
-    await game_engine.start_game(game_id, "competitive_classic_5_6")
+    await game_engine.start_game(game_id, "classic_5_6")
+
 
     # phase_end_at is in the future by default
     now = datetime.now(timezone.utc)

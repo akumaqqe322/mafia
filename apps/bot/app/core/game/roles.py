@@ -4,8 +4,9 @@ from pydantic import BaseModel, Field
 
 
 class MatchMode(str, Enum):
-    COMPETITIVE = "competitive"
-    PARTY = "party"
+    CLASSIC = "classic"
+    EXTENDED = "extended"
+    FULL_HOUSE = "full_house"
 
 
 class RoleSide(str, Enum):
@@ -36,8 +37,7 @@ class RoleMetadata(BaseModel):
     emoji: str
     side: RoleSide
     description: str
-    available_in_competitive: bool  # True if role is balanced and approved for Ranked v1
-    available_in_party: bool  # Available in Custom/Party matches
+    available_in_modes: tuple[MatchMode, ...]
 
 
 class RolePreset(BaseModel):
@@ -46,13 +46,13 @@ class RolePreset(BaseModel):
     min_players: int
     max_players: int
     role_counts: dict[RoleId, int] = Field(default_factory=dict)
-    reward_eligible: bool
+    rewards_enabled: bool
+    reward_multiplier: float = 1.0
 
 
 class RoleRegistry:
     """
     Registry of all available roles in the platform.
-    Competitive v1 roles are restricted to core balance.
     """
     _roles: dict[RoleId, RoleMetadata] = {
         RoleId.CIVILIAN: RoleMetadata(
@@ -61,8 +61,7 @@ class RoleRegistry:
             emoji="👤",
             side=RoleSide.CIVILIAN,
             description="Обычный гражданин, пытающийся вычислить мафию.",
-            available_in_competitive=True,
-            available_in_party=True,
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.MAFIA: RoleMetadata(
             id=RoleId.MAFIA,
@@ -70,8 +69,7 @@ class RoleRegistry:
             emoji="🕵️‍♂️",
             side=RoleSide.MAFIA,
             description="Член преступной группировки, убивающий мирных жителей.",
-            available_in_competitive=True,
-            available_in_party=True,
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.DON: RoleMetadata(
             id=RoleId.DON,
@@ -79,8 +77,7 @@ class RoleRegistry:
             emoji="🎩",
             side=RoleSide.MAFIA,
             description="Глава мафии, ищет Шерифа ночью.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.SHERIFF: RoleMetadata(
             id=RoleId.SHERIFF,
@@ -88,8 +85,7 @@ class RoleRegistry:
             emoji="👮‍♂️",
             side=RoleSide.CIVILIAN,
             description="Блюститель закона, проверяет игроков ночью.",
-            available_in_competitive=True,
-            available_in_party=True,
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.SERGEANT: RoleMetadata(
             id=RoleId.SERGEANT,
@@ -97,8 +93,7 @@ class RoleRegistry:
             emoji="🎖",
             side=RoleSide.CIVILIAN,
             description="Помощник Шерифа, узнает результаты проверок после смерти Шерифа.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.DOCTOR: RoleMetadata(
             id=RoleId.DOCTOR,
@@ -106,8 +101,7 @@ class RoleRegistry:
             emoji="👨‍⚕️",
             side=RoleSide.CIVILIAN,
             description="Спасает одного игрока от смерти ночью.",
-            available_in_competitive=True,
-            available_in_party=True,
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.MANIAC: RoleMetadata(
             id=RoleId.MANIAC,
@@ -115,8 +109,7 @@ class RoleRegistry:
             emoji="🔪",
             side=RoleSide.NEUTRAL,
             description="Одиночка, убивающий всех на своем пути.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.LOVER: RoleMetadata(
             id=RoleId.LOVER,
@@ -124,8 +117,7 @@ class RoleRegistry:
             emoji="💃",
             side=RoleSide.CIVILIAN,
             description="Блокирует ночное действие выбранного игрока.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
         ),
         RoleId.LAWYER: RoleMetadata(
             id=RoleId.LAWYER,
@@ -133,8 +125,7 @@ class RoleRegistry:
             emoji="💼",
             side=RoleSide.MAFIA,
             description="Защищает члена мафии от проверок Шерифа.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.FULL_HOUSE,),
         ),
         RoleId.SUICIDE: RoleMetadata(
             id=RoleId.SUICIDE,
@@ -142,8 +133,7 @@ class RoleRegistry:
             emoji="🧟",
             side=RoleSide.NEUTRAL,
             description="Побеждает, если его казнят на голосовании.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.FULL_HOUSE,),
         ),
         RoleId.HOBO: RoleMetadata(
             id=RoleId.HOBO,
@@ -151,8 +141,7 @@ class RoleRegistry:
             emoji="🏚",
             side=RoleSide.CIVILIAN,
             description="Следит за игроком и узнает, кто к нему заходил ночью.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.FULL_HOUSE,),
         ),
         RoleId.LUCKY: RoleMetadata(
             id=RoleId.LUCKY,
@@ -160,8 +149,7 @@ class RoleRegistry:
             emoji="🍀",
             side=RoleSide.CIVILIAN,
             description="Имеет шанс выжить после первого покушения.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.FULL_HOUSE,),
         ),
         RoleId.KAMIKAZE: RoleMetadata(
             id=RoleId.KAMIKAZE,
@@ -169,8 +157,7 @@ class RoleRegistry:
             emoji="💣",
             side=RoleSide.CIVILIAN,
             description="Забирает с собой того, кто его убил или казнил.",
-            available_in_competitive=False,
-            available_in_party=True,
+            available_in_modes=(MatchMode.FULL_HOUSE,),
         ),
     }
 
@@ -186,9 +173,7 @@ class RoleRegistry:
 
     @classmethod
     def list_for_mode(cls, mode: MatchMode) -> list[RoleMetadata]:
-        if mode == MatchMode.COMPETITIVE:
-            return [r for r in cls._roles.values() if r.available_in_competitive]
-        return [r for r in cls._roles.values() if r.available_in_party]
+        return [r for r in cls._roles.values() if mode in r.available_in_modes]
 
 
 class PresetRegistry:
@@ -198,9 +183,9 @@ class PresetRegistry:
     assignment_service will calculate: civilians = current_players - sum(role_counts).
     """
 
-    COMPETITIVE_CLASSIC_5_6 = RolePreset(
-        id="competitive_classic_5_6",
-        mode=MatchMode.COMPETITIVE,
+    CLASSIC_5_6 = RolePreset(
+        id="classic_5_6",
+        mode=MatchMode.CLASSIC,
         min_players=5,
         max_players=6,
         role_counts={
@@ -208,26 +193,26 @@ class PresetRegistry:
             RoleId.SHERIFF: 1,
             RoleId.DOCTOR: 1,
         },
-        reward_eligible=True,
+        rewards_enabled=True,
     )
 
-    COMPETITIVE_CLASSIC_7_9 = RolePreset(
-        id="competitive_classic_7_9",
-        mode=MatchMode.COMPETITIVE,
+    CLASSIC_7_10 = RolePreset(
+        id="classic_7_10",
+        mode=MatchMode.CLASSIC,
         min_players=7,
-        max_players=9,
+        max_players=10,
         role_counts={
             RoleId.MAFIA: 2,
             RoleId.SHERIFF: 1,
             RoleId.DOCTOR: 1,
         },
-        reward_eligible=True,
+        rewards_enabled=True,
     )
 
-    PARTY_EXTENDED = RolePreset(
-        id="party_extended",
-        mode=MatchMode.PARTY,
-        min_players=4,
+    EXTENDED_10_12 = RolePreset(
+        id="extended_10_12",
+        mode=MatchMode.EXTENDED,
+        min_players=10,
         max_players=12,
         role_counts={
             RoleId.MAFIA: 2,
@@ -236,15 +221,57 @@ class PresetRegistry:
             RoleId.DOCTOR: 1,
             RoleId.MANIAC: 1,
         },
-        reward_eligible=False,
+        rewards_enabled=True,
+    )
+
+    EXTENDED_13_15 = RolePreset(
+        id="extended_13_15",
+        mode=MatchMode.EXTENDED,
+        min_players=13,
+        max_players=15,
+        role_counts={
+            RoleId.MAFIA: 3,
+            RoleId.DON: 1,
+            RoleId.SHERIFF: 1,
+            RoleId.SERGEANT: 1,
+            RoleId.DOCTOR: 1,
+            RoleId.MANIAC: 1,
+            RoleId.LOVER: 1,
+        },
+        rewards_enabled=True,
+    )
+
+    FULL_HOUSE_16_20 = RolePreset(
+        id="full_house_16_20",
+        mode=MatchMode.FULL_HOUSE,
+        min_players=16,
+        max_players=20,
+        role_counts={
+            RoleId.MAFIA: 4,
+            RoleId.DON: 1,
+            RoleId.LAWYER: 1,
+            RoleId.SHERIFF: 1,
+            RoleId.SERGEANT: 1,
+            RoleId.DOCTOR: 1,
+            RoleId.MANIAC: 1,
+            RoleId.LOVER: 1,
+            RoleId.HOBO: 1,
+            RoleId.LUCKY: 1,
+            RoleId.KAMIKAZE: 1,
+            RoleId.SUICIDE: 1,
+        },
+        rewards_enabled=True,
+        reward_multiplier=1.0,
     )
 
     @classmethod
     def list_all(cls) -> list[RolePreset]:
         return [
-            cls.COMPETITIVE_CLASSIC_5_6,
-            cls.COMPETITIVE_CLASSIC_7_9,
-            cls.PARTY_EXTENDED,
+            cls.CLASSIC_5_6,
+            cls.CLASSIC_7_10,
+            cls.EXTENDED_10_12,
+            cls.EXTENDED_13_15,
+            cls.FULL_HOUSE_16_20,
         ]
 
     @classmethod
@@ -253,3 +280,4 @@ class PresetRegistry:
             if p.id == preset_id:
                 return p
         raise ValueError(f"Preset {preset_id} not found")
+

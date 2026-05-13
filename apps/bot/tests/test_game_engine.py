@@ -157,10 +157,10 @@ async def test_start_game_success(game_engine: GameEngine) -> None:
     game_id = uuid4()
     await game_engine.create_game(game_id, uuid4(), 123)
 
-    # Add 5 players for competitive_classic_5_6
+    # Add 5 players for classic_5_6
     for i in range(5):
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"Player {i}")
-    state = await game_engine.start_game(game_id, "competitive_classic_5_6")
+    state = await game_engine.start_game(game_id, "classic_5_6")
 
     assert state.phase == GamePhase.NIGHT
     assert state.phase_end_at is not None
@@ -187,7 +187,7 @@ async def test_start_game_not_enough_players(game_engine: GameEngine) -> None:
     await game_engine.join_game(game_id, uuid4(), 456, "P1")
 
     with pytest.raises(NotEnoughPlayersError):
-        await game_engine.start_game(game_id, "competitive_classic_5_6")
+        await game_engine.start_game(game_id, "classic_5_6")
 
 
 @pytest.mark.asyncio
@@ -198,17 +198,17 @@ async def test_start_game_invalid_phase(game_engine: GameEngine) -> None:
     # Start it once (effectively, though we need players)
     for i in range(5):
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
-    await game_engine.start_game(game_id, "competitive_classic_5_6")
+    await game_engine.start_game(game_id, "classic_5_6")
 
     # Try starting again while in NIGHT phase
     with pytest.raises(InvalidGamePhaseError):
-        await game_engine.start_game(game_id, "competitive_classic_5_6")
+        await game_engine.start_game(game_id, "classic_5_6")
 
 
 @pytest.mark.asyncio
 async def test_start_game_not_found(game_engine: GameEngine) -> None:
     with pytest.raises(GameNotFoundError):
-        await game_engine.start_game(uuid4(), "competitive_classic_5_6")
+        await game_engine.start_game(uuid4(), "classic_5_6")
 
 
 @pytest.mark.asyncio
@@ -219,7 +219,7 @@ async def test_advance_phase_flow(game_engine: GameEngine) -> None:
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
 
     # Starts in LOBBY -> Start Game -> NIGHT
-    state = await game_engine.start_game(game_id, "competitive_classic_5_6")
+    state = await game_engine.start_game(game_id, "classic_5_6")
     assert state.phase == GamePhase.NIGHT
     assert state.version == 7
 
