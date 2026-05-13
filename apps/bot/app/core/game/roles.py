@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class MatchMode(str, Enum):
     CLASSIC = "classic"
     EXTENDED = "extended"
-    FULL_HOUSE = "full_house"
+    BIG_GAME = "big_game"
 
 
 class RoleSide(str, Enum):
@@ -61,7 +61,7 @@ class RoleRegistry:
             emoji="👤",
             side=RoleSide.CIVILIAN,
             description="Обычный гражданин, пытающийся вычислить мафию.",
-            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.MAFIA: RoleMetadata(
             id=RoleId.MAFIA,
@@ -69,7 +69,7 @@ class RoleRegistry:
             emoji="🕵️‍♂️",
             side=RoleSide.MAFIA,
             description="Член преступной группировки, убивающий мирных жителей.",
-            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.DON: RoleMetadata(
             id=RoleId.DON,
@@ -77,7 +77,7 @@ class RoleRegistry:
             emoji="🎩",
             side=RoleSide.MAFIA,
             description="Глава мафии, ищет Шерифа ночью.",
-            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.SHERIFF: RoleMetadata(
             id=RoleId.SHERIFF,
@@ -85,7 +85,7 @@ class RoleRegistry:
             emoji="👮‍♂️",
             side=RoleSide.CIVILIAN,
             description="Блюститель закона, проверяет игроков ночью.",
-            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.SERGEANT: RoleMetadata(
             id=RoleId.SERGEANT,
@@ -93,7 +93,7 @@ class RoleRegistry:
             emoji="🎖",
             side=RoleSide.CIVILIAN,
             description="Помощник Шерифа, узнает результаты проверок после смерти Шерифа.",
-            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.DOCTOR: RoleMetadata(
             id=RoleId.DOCTOR,
@@ -101,7 +101,7 @@ class RoleRegistry:
             emoji="👨‍⚕️",
             side=RoleSide.CIVILIAN,
             description="Спасает одного игрока от смерти ночью.",
-            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.MANIAC: RoleMetadata(
             id=RoleId.MANIAC,
@@ -109,7 +109,7 @@ class RoleRegistry:
             emoji="🔪",
             side=RoleSide.NEUTRAL,
             description="Одиночка, убивающий всех на своем пути.",
-            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.BIG_GAME,),
         ),
         RoleId.LOVER: RoleMetadata(
             id=RoleId.LOVER,
@@ -117,7 +117,7 @@ class RoleRegistry:
             emoji="💃",
             side=RoleSide.CIVILIAN,
             description="Блокирует ночное действие выбранного игрока.",
-            available_in_modes=(MatchMode.EXTENDED, MatchMode.FULL_HOUSE),
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.LAWYER: RoleMetadata(
             id=RoleId.LAWYER,
@@ -125,7 +125,7 @@ class RoleRegistry:
             emoji="💼",
             side=RoleSide.MAFIA,
             description="Защищает члена мафии от проверок Шерифа.",
-            available_in_modes=(MatchMode.FULL_HOUSE,),
+            available_in_modes=(MatchMode.BIG_GAME,),
         ),
         RoleId.SUICIDE: RoleMetadata(
             id=RoleId.SUICIDE,
@@ -133,7 +133,7 @@ class RoleRegistry:
             emoji="🧟",
             side=RoleSide.NEUTRAL,
             description="Побеждает, если его казнят на голосовании.",
-            available_in_modes=(MatchMode.FULL_HOUSE,),
+            available_in_modes=(),
         ),
         RoleId.HOBO: RoleMetadata(
             id=RoleId.HOBO,
@@ -141,7 +141,7 @@ class RoleRegistry:
             emoji="🏚",
             side=RoleSide.CIVILIAN,
             description="Следит за игроком и узнает, кто к нему заходил ночью.",
-            available_in_modes=(MatchMode.FULL_HOUSE,),
+            available_in_modes=(MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.LUCKY: RoleMetadata(
             id=RoleId.LUCKY,
@@ -149,7 +149,7 @@ class RoleRegistry:
             emoji="🍀",
             side=RoleSide.CIVILIAN,
             description="Имеет шанс выжить после первого покушения.",
-            available_in_modes=(MatchMode.FULL_HOUSE,),
+            available_in_modes=(MatchMode.BIG_GAME,),
         ),
         RoleId.KAMIKAZE: RoleMetadata(
             id=RoleId.KAMIKAZE,
@@ -157,7 +157,7 @@ class RoleRegistry:
             emoji="💣",
             side=RoleSide.CIVILIAN,
             description="Забирает с собой того, кто его убил или казнил.",
-            available_in_modes=(MatchMode.FULL_HOUSE,),
+            available_in_modes=(MatchMode.BIG_GAME,),
         ),
     }
 
@@ -196,11 +196,11 @@ class PresetRegistry:
         rewards_enabled=True,
     )
 
-    CLASSIC_7_10 = RolePreset(
-        id="classic_7_10",
+    CLASSIC_7_8 = RolePreset(
+        id="classic_7_8",
         mode=MatchMode.CLASSIC,
         min_players=7,
-        max_players=10,
+        max_players=8,
         role_counts={
             RoleId.MAFIA: 2,
             RoleId.SHERIFF: 1,
@@ -209,17 +209,32 @@ class PresetRegistry:
         rewards_enabled=True,
     )
 
-    EXTENDED_10_12 = RolePreset(
-        id="extended_10_12",
-        mode=MatchMode.EXTENDED,
-        min_players=10,
-        max_players=12,
+    CLASSIC_9_10 = RolePreset(
+        id="classic_9_10",
+        mode=MatchMode.CLASSIC,
+        min_players=9,
+        max_players=10,
         role_counts={
             RoleId.MAFIA: 2,
             RoleId.DON: 1,
             RoleId.SHERIFF: 1,
             RoleId.DOCTOR: 1,
-            RoleId.MANIAC: 1,
+        },
+        rewards_enabled=True,
+    )
+
+    EXTENDED_11_12 = RolePreset(
+        id="extended_11_12",
+        mode=MatchMode.EXTENDED,
+        min_players=11,
+        max_players=12,
+        role_counts={
+            RoleId.MAFIA: 2,
+            RoleId.DON: 1,
+            RoleId.SHERIFF: 1,
+            RoleId.SERGEANT: 1,
+            RoleId.DOCTOR: 1,
+            RoleId.LOVER: 1,
         },
         rewards_enabled=True,
     )
@@ -235,30 +250,47 @@ class PresetRegistry:
             RoleId.SHERIFF: 1,
             RoleId.SERGEANT: 1,
             RoleId.DOCTOR: 1,
-            RoleId.MANIAC: 1,
             RoleId.LOVER: 1,
+            RoleId.HOBO: 1,
         },
         rewards_enabled=True,
     )
 
-    FULL_HOUSE_16_20 = RolePreset(
-        id="full_house_16_20",
-        mode=MatchMode.FULL_HOUSE,
+    BIG_GAME_16_17 = RolePreset(
+        id="big_game_16_17",
+        mode=MatchMode.BIG_GAME,
         min_players=16,
+        max_players=17,
+        role_counts={
+            RoleId.MAFIA: 3,
+            RoleId.DON: 1,
+            RoleId.SHERIFF: 1,
+            RoleId.SERGEANT: 1,
+            RoleId.DOCTOR: 1,
+            RoleId.LOVER: 1,
+            RoleId.HOBO: 1,
+            RoleId.MANIAC: 1,
+        },
+        rewards_enabled=True,
+    )
+
+    BIG_GAME_18_20 = RolePreset(
+        id="big_game_18_20",
+        mode=MatchMode.BIG_GAME,
+        min_players=18,
         max_players=20,
         role_counts={
-            RoleId.MAFIA: 4,
+            RoleId.MAFIA: 3,
             RoleId.DON: 1,
             RoleId.LAWYER: 1,
             RoleId.SHERIFF: 1,
             RoleId.SERGEANT: 1,
             RoleId.DOCTOR: 1,
-            RoleId.MANIAC: 1,
             RoleId.LOVER: 1,
             RoleId.HOBO: 1,
+            RoleId.MANIAC: 1,
             RoleId.LUCKY: 1,
             RoleId.KAMIKAZE: 1,
-            RoleId.SUICIDE: 1,
         },
         rewards_enabled=True,
         reward_multiplier=1.0,
@@ -268,10 +300,12 @@ class PresetRegistry:
     def list_all(cls) -> list[RolePreset]:
         return [
             cls.CLASSIC_5_6,
-            cls.CLASSIC_7_10,
-            cls.EXTENDED_10_12,
+            cls.CLASSIC_7_8,
+            cls.CLASSIC_9_10,
+            cls.EXTENDED_11_12,
             cls.EXTENDED_13_15,
-            cls.FULL_HOUSE_16_20,
+            cls.BIG_GAME_16_17,
+            cls.BIG_GAME_18_20,
         ]
 
     @classmethod

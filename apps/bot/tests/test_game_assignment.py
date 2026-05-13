@@ -143,22 +143,36 @@ def test_real_presets_from_registry() -> None:
     assert deck_5.count(RoleId.DOCTOR) == 1
     assert deck_5.count(RoleId.CIVILIAN) == 2
 
-    # 2. classic_7_10
-    comp_10 = PresetRegistry.get_by_id("classic_7_10")
-    deck_10 = RoleAssignmentService.build_role_deck(comp_10, 10)
-    assert len(deck_10) == 10
-    assert deck_10.count(RoleId.MAFIA) == 2
-    assert deck_10.count(RoleId.SHERIFF) == 1
-    assert deck_10.count(RoleId.DOCTOR) == 1
-    assert deck_10.count(RoleId.CIVILIAN) == 6
+    # 2. classic_9_10
+    comp_9 = PresetRegistry.get_by_id("classic_9_10")
+    deck_9 = RoleAssignmentService.build_role_deck(comp_9, 10)
+    assert len(deck_9) == 10
+    assert deck_9.count(RoleId.MAFIA) == 2
+    assert deck_9.count(RoleId.DON) == 1
+    assert deck_9.count(RoleId.SHERIFF) == 1
+    assert deck_9.count(RoleId.DOCTOR) == 1
+    assert deck_9.count(RoleId.CIVILIAN) == 5
+
+    # 3. extended_13_15
+    ext_15 = PresetRegistry.get_by_id("extended_13_15")
+    deck_15 = RoleAssignmentService.build_role_deck(ext_15, 15)
+    assert len(deck_15) == 15
+    assert deck_15.count(RoleId.MAFIA) == 3
+    assert deck_15.count(RoleId.DON) == 1
+    assert deck_15.count(RoleId.SHERIFF) == 1
+    assert deck_15.count(RoleId.SERGEANT) == 1
+    assert deck_15.count(RoleId.DOCTOR) == 1
+    assert deck_15.count(RoleId.LOVER) == 1
+    assert deck_15.count(RoleId.HOBO) == 1
+    assert deck_15.count(RoleId.CIVILIAN) == 6
 
 
-def test_full_house_16_20_deck() -> None:
-    preset = PresetRegistry.get_by_id("full_house_16_20")
+def test_big_game_18_20_deck() -> None:
+    preset = PresetRegistry.get_by_id("big_game_18_20")
 
     deck = RoleAssignmentService.build_role_deck(preset, 20)
     assert len(deck) == 20
-    assert deck.count(RoleId.MAFIA) == 4
+    assert deck.count(RoleId.MAFIA) == 3
     assert deck.count(RoleId.DON) == 1
     assert deck.count(RoleId.LAWYER) == 1
     assert deck.count(RoleId.SHERIFF) == 1
@@ -169,5 +183,9 @@ def test_full_house_16_20_deck() -> None:
     assert deck.count(RoleId.HOBO) == 1
     assert deck.count(RoleId.LUCKY) == 1
     assert deck.count(RoleId.KAMIKAZE) == 1
-    assert deck.count(RoleId.SUICIDE) == 1
-    assert deck.count(RoleId.CIVILIAN) == 5
+    assert deck.count(RoleId.CIVILIAN) == 7
+
+
+def test_no_suicide_in_official_presets() -> None:
+    for preset in PresetRegistry.list_all():
+        assert RoleId.SUICIDE not in preset.role_counts
