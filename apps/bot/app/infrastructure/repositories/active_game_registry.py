@@ -36,6 +36,6 @@ class ActiveGameRegistry:
         data = await self.redis.client.get(self._get_chat_mapping_key(telegram_chat_id))
         if not data:
             return None
-        
+
         game_id_str = data.decode("utf-8") if isinstance(data, bytes) else data
         return UUID(game_id_str)

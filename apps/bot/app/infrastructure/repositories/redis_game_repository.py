@@ -20,10 +20,10 @@ class RedisGameStateRepository:
         data = await self.redis.client.get(key)
         if not data:
             return None
-        
+
         if isinstance(data, bytes):
             data = data.decode("utf-8")
-            
+
         return GameState.from_json(data)
 
     async def delete(self, game_id: UUID) -> None:
