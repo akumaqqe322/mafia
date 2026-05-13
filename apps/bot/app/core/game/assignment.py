@@ -39,6 +39,12 @@ class RoleAssignmentService:
         # 3. Calculate used slots
         deck: list[RoleId] = []
         for role_id, count in preset.role_counts.items():
+            # Validate role count
+            if count <= 0:
+                raise InvalidRolePresetError(
+                    f"Role {role_id} in preset {preset.id} must have count > 0, but got {count}."
+                )
+
             # Validate role existence and mode compatibility
             role_meta = RoleRegistry.get(role_id)
             if (
