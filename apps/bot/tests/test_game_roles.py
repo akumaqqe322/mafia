@@ -1,4 +1,8 @@
+import typing
+from uuid import uuid4
+
 import pytest
+
 from app.core.game.roles import (
     MatchMode,
     PresetRegistry,
@@ -18,38 +22,38 @@ def test_role_registry_get_success() -> None:
 def test_role_registry_get_not_found() -> None:
     with pytest.raises(ValueError, match="not found"):
         # We cast to avoid mypy error but test runtime behavior
-        RoleRegistry.get("non_existent_role")  # type: ignore
+        RoleRegistry.get(typing.cast(RoleId, "non_existent_role"))
 
 
-def test_role_registry_list_for_mode_competitive() -> None:
+def test_role_registry_list_for_mode_competitive_v1() -> None:
     comp_roles = RoleRegistry.list_for_mode(MatchMode.COMPETITIVE)
     role_ids = [r.id for r in comp_roles]
-    
-    # Check some core roles
-    assert RoleId.CIVILIAN in role_ids
-    assert RoleId.MAFIA in role_ids
-    assert RoleId.SHERIFF in role_ids
-    assert RoleId.DOCTOR in role_ids
-    
-    # Check that non-competitive roles are NOT there
-    assert RoleId.DON not in role_ids
-    assert RoleId.MANIAC not in role_ids
+
+    # Competitive v1 MUST include only these 4 roles
+    allowed_v1 = {RoleId.CIVILIAN, RoleId.MAFIA, RoleId.SHERIFF, RoleId.DOCTOR}
+    assert set(role_ids) == allowed_v1
 
 
 def test_role_registry_list_for_mode_party() -> None:
     party_roles = RoleRegistry.list_for_mode(MatchMode.PARTY)
     role_ids = [r.id for r in party_roles]
-    
-    # Party should have more roles
+
+    # Party should have all roles
     assert RoleId.DON in role_ids
     assert RoleId.MANIAC in role_ids
     assert RoleId.KAMIKAZE in role_ids
+    assert len(role_ids) > 5
+
+
+def test_kamikaze_side() -> None:
+    kamikaze = RoleRegistry.get(RoleId.KAMIKAZE)
+    assert kamikaze.side == RoleSide.CIVILIAN
 
 
 def test_presets_registration() -> None:
     presets = PresetRegistry.list_all()
     assert len(presets) >= 3
-    
+
     ids = [p.id for p in presets]
     assert "competitive_classic_5_6" in ids
     assert "party_extended" in ids

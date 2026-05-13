@@ -1,4 +1,5 @@
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 
@@ -35,8 +36,8 @@ class RoleMetadata(BaseModel):
     emoji: str
     side: RoleSide
     description: str
-    available_in_competitive: bool
-    available_in_party: bool
+    available_in_competitive: bool  # True if role is balanced and approved for Ranked v1
+    available_in_party: bool  # Available in Custom/Party matches
 
 
 class RolePreset(BaseModel):
@@ -49,6 +50,10 @@ class RolePreset(BaseModel):
 
 
 class RoleRegistry:
+    """
+    Registry of all available roles in the platform.
+    Competitive v1 roles are restricted to core balance.
+    """
     _roles: dict[RoleId, RoleMetadata] = {
         RoleId.CIVILIAN: RoleMetadata(
             id=RoleId.CIVILIAN,
@@ -162,7 +167,7 @@ class RoleRegistry:
             id=RoleId.KAMIKAZE,
             name="Камикадзе",
             emoji="💣",
-            side=RoleSide.NEUTRAL,
+            side=RoleSide.CIVILIAN,
             description="Забирает с собой того, кто его убил или казнил.",
             available_in_competitive=False,
             available_in_party=True,
@@ -192,7 +197,7 @@ class PresetRegistry:
     Civilians are filler roles and are not explicitly counted in role_counts.
     assignment_service will calculate: civilians = current_players - sum(role_counts).
     """
-    
+
     COMPETITIVE_CLASSIC_5_6 = RolePreset(
         id="competitive_classic_5_6",
         mode=MatchMode.COMPETITIVE,
@@ -205,7 +210,7 @@ class PresetRegistry:
         },
         reward_eligible=True,
     )
-    
+
     COMPETITIVE_CLASSIC_7_9 = RolePreset(
         id="competitive_classic_7_9",
         mode=MatchMode.COMPETITIVE,
@@ -218,7 +223,7 @@ class PresetRegistry:
         },
         reward_eligible=True,
     )
-    
+
     PARTY_EXTENDED = RolePreset(
         id="party_extended",
         mode=MatchMode.PARTY,
