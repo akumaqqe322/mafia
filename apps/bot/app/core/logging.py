@@ -1,10 +1,15 @@
 import logging
 import sys
-import structlog
-from app.core.config import settings
+from typing import Any
 
-def setup_logging():
-    shared_processors = [
+import structlog
+
+from app.core.config import get_settings
+
+
+def setup_logging() -> None:
+    settings = get_settings()
+    shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.format_exc_info,

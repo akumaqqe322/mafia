@@ -1,10 +1,13 @@
 import asyncio
+
 import structlog
 from aiogram import Bot, Dispatcher
+
+from app.bot.handlers import router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.bot.handlers import router
 from app.infrastructure.container import container
+
 
 async def main() -> None:
     # Setup logging

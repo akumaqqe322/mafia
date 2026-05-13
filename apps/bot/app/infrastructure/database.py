@@ -1,10 +1,18 @@
 from typing import AsyncGenerator
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
-from app.core.config import get_settings
+
 import structlog
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from app.core.config import get_settings
 
 log = structlog.get_logger()
+
 
 class Database:
     def __init__(self, url: str) -> None:
@@ -13,7 +21,7 @@ class Database:
             pool_pre_ping=True,
             echo=False,
         )
-        self.session_factory = async_sessionmaker(
+        self.session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             bind=self.engine,
             class_=AsyncSession,
             expire_on_commit=False,
@@ -38,6 +46,7 @@ class Database:
                 yield session
             finally:
                 await session.close()
+
 
 settings = get_settings()
 db = Database(settings.DATABASE_URL)

@@ -1,8 +1,10 @@
 import redis.asyncio as redis
-from app.core.config import get_settings
 import structlog
 
+from app.core.config import get_settings
+
 log = structlog.get_logger()
+
 
 class RedisClient:
     def __init__(self, url: str) -> None:
@@ -19,6 +21,7 @@ class RedisClient:
     async def close(self) -> None:
         await self.client.aclose()
         log.info("Redis connection closed")
+
 
 settings = get_settings()
 redis_client = RedisClient(settings.REDIS_URL)
