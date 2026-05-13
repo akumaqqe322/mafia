@@ -156,23 +156,28 @@ async def test_game_not_found_errors(game_engine: GameEngine) -> None:
 async def test_start_game_success(game_engine: GameEngine) -> None:
     game_id = uuid4()
     await game_engine.create_game(game_id, uuid4(), 123)
-    
+
     # Add 5 players for competitive_classic_5_6
     for i in range(5):
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"Player {i}")
-        
     state = await game_engine.start_game(game_id, "competitive_classic_5_6")
-    
+
     assert state.phase == GamePhase.NIGHT
     assert state.phase_end_at is not None
+    assert state.phase_started_at is not None
+    assert state.phase_end_at > state.phase_started_at
+
+    duration = (state.phase_end_at - state.phase_started_at).total_seconds()
+    assert abs(duration - state.settings.night_duration_sec) < 0.1
+
     assert all(p.role is not None for p in state.players)
-    
+
     roles = [p.role for p in state.players]
     assert roles.count(RoleId.MAFIA.value) == 1
     assert roles.count(RoleId.SHERIFF.value) == 1
     assert roles.count(RoleId.DOCTOR.value) == 1
     assert roles.count(RoleId.CIVILIAN.value) == 2
-    assert state.version > 1
+    assert state.version == 7
 
 
 @pytest.mark.asyncio
@@ -180,7 +185,7 @@ async def test_start_game_not_enough_players(game_engine: GameEngine) -> None:
     game_id = uuid4()
     await game_engine.create_game(game_id, uuid4(), 123)
     await game_engine.join_game(game_id, uuid4(), 456, "P1")
-    
+
     with pytest.raises(NotEnoughPlayersError):
         await game_engine.start_game(game_id, "competitive_classic_5_6")
 
@@ -189,12 +194,12 @@ async def test_start_game_not_enough_players(game_engine: GameEngine) -> None:
 async def test_start_game_invalid_phase(game_engine: GameEngine) -> None:
     game_id = uuid4()
     await game_engine.create_game(game_id, uuid4(), 123)
-    
+
     # Start it once (effectively, though we need players)
     for i in range(5):
         await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
     await game_engine.start_game(game_id, "competitive_classic_5_6")
-    
+
     # Try starting again while in NIGHT phase
     with pytest.raises(InvalidGamePhaseError):
         await game_engine.start_game(game_id, "competitive_classic_5_6")
