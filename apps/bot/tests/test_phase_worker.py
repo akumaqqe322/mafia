@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+import asyncio
 
 import pytest
 
@@ -20,21 +21,28 @@ def fake_redis() -> FakeRedisClient:
 
 
 @pytest.fixture
-def repositories(fake_redis: FakeRedisClient):
+def repositories(
+    fake_redis: FakeRedisClient,
+) -> tuple[RedisGameStateRepository, ActiveGameRegistry]:
     state_repo = RedisGameStateRepository(fake_redis)
     registry = ActiveGameRegistry(fake_redis)
     return state_repo, registry
 
 
 @pytest.fixture
-def game_engine(repositories) -> GameEngine:
+def game_engine(
+    repositories: tuple[RedisGameStateRepository, ActiveGameRegistry],
+) -> GameEngine:
     state_repo, registry = repositories
     lock_manager = GameLockManager()
     return GameEngine(state_repo, registry, lock_manager)
 
 
 @pytest.fixture
-def phase_worker(game_engine, repositories) -> PhaseWorker:
+def phase_worker(
+    game_engine: GameEngine,
+    repositories: tuple[RedisGameStateRepository, ActiveGameRegistry],
+) -> PhaseWorker:
     state_repo, registry = repositories
     return PhaseWorker(game_engine, state_repo, registry)
 
@@ -117,3 +125,15 @@ async def test_tick_skips_missing_state(
 
     count = await phase_worker.tick()
     assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_phase_worker_start_stop(phase_worker: PhaseWorker) -> None:
+    phase_worker.poll_interval_sec = 0.01
+    task = asyncio.create_task(phase_worker.start())
+
+    await asyncio.sleep(0.02)
+    phase_worker.stop()
+
+    await asyncio.wait_for(task, timeout=1.0)
+    assert not phase_worker._is_running

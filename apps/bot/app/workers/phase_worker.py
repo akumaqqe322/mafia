@@ -42,13 +42,21 @@ class PhaseWorker:
                     continue
 
                 if state.phase_end_at <= current_time:
-                    logger.info(f"Advancing phase for game {game_id} (expired at {state.phase_end_at})")
+                    logger.info(
+                        "Advancing phase for game %s (expired at %s)",
+                        game_id,
+                        state.phase_end_at,
+                    )
                     await self.game_engine.advance_phase(game_id)
                     advanced_count += 1
             except GameEngineException as e:
-                logger.error(f"Error advancing game {game_id}: {e}")
+                logger.error("Error advancing game %s: %s", game_id, e)
             except Exception as e:
-                logger.exception(f"Unexpected error in PhaseWorker for game {game_id}: {e}")
+                logger.exception(
+                    "Unexpected error in PhaseWorker for game %s: %s",
+                    game_id,
+                    e,
+                )
 
         return advanced_count
 
