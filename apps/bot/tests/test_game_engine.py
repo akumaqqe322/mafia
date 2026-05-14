@@ -942,11 +942,16 @@ async def test_registry_is_clean_after_night_victory(game_engine: GameEngine) ->
     await game_engine.submit_night_action(
         game_id, p_mafia, NightActionType.KILL, p_civ1
     )
+    state_before = await game_engine.state_repository.get(game_id)
+    assert state_before is not None
+    version_before = state_before.version
+
     await game_engine.resolve_night(game_id)
 
     state = await game_engine.state_repository.get(game_id)
     assert state is not None
     assert state.phase == GamePhase.FINISHED
+    assert state.version == version_before + 1
 
     # Check registry is clean
     active_id = await game_engine.active_game_registry.get_active_game_by_chat(
@@ -986,11 +991,16 @@ async def test_registry_is_clean_after_day_victory(game_engine: GameEngine) -> N
     await game_engine.submit_day_vote(game_id, p_civ1, p_mafia)
     await game_engine.submit_day_vote(game_id, p_civ2, p_mafia)
 
+    state_before = await game_engine.state_repository.get(game_id)
+    assert state_before is not None
+    version_before = state_before.version
+
     await game_engine.resolve_day_votes(game_id)
 
     state = await game_engine.state_repository.get(game_id)
     assert state is not None
     assert state.phase == GamePhase.FINISHED
+    assert state.version == version_before + 1
 
     # Check registry is clean
     active_id = await game_engine.active_game_registry.get_active_game_by_chat(

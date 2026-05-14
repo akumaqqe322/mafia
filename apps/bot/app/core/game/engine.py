@@ -347,7 +347,6 @@ class GameEngine:
         state.phase = GamePhase.FINISHED
         state.phase_end_at = None
         state.winner_side = winner_side.value
-        state.version += 1
 
     async def resolve_night(self, game_id: UUID) -> NightResolutionResult:
         async with self.lock_manager.lock(game_id):
