@@ -1,4 +1,5 @@
 from aiogram import F, Router, types
+
 from app.bot.callbacks import DayVoteCallback
 from app.core.game.engine import (
     GameNotFoundError,
@@ -46,7 +47,9 @@ async def handle_day_vote(
         return
 
     tg_chat_id = message.chat.id
-    active_game_id = await container.active_game_registry.get_active_game_by_chat(tg_chat_id)
+    active_game_id = await container.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
     if not active_game_id:
         await callback.answer("Активная игра не найдена.", show_alert=True)
         return
@@ -60,7 +63,10 @@ async def handle_day_vote(
         await callback.answer("Сейчас голосование недоступно.", show_alert=True)
         return
 
-    voter = next((p for p in state.players if p.telegram_id == callback.from_user.id), None)
+    voter = next(
+        (p for p in state.players if p.telegram_id == callback.from_user.id),
+        None,
+    )
     if voter is None:
         await callback.answer("Ты не участвуешь в этой игре.", show_alert=True)
         return
@@ -69,7 +75,10 @@ async def handle_day_vote(
         await callback.answer("Мертвые игроки не голосуют.", show_alert=True)
         return
 
-    target = next((p for p in state.players if p.telegram_id == parsed.target_telegram_id), None)
+    target = next(
+        (p for p in state.players if p.telegram_id == parsed.target_telegram_id),
+        None,
+    )
     if target is None:
         await callback.answer("Цель голосования не найдена.", show_alert=True)
         return
