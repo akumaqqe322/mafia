@@ -30,29 +30,6 @@ class RoleId(str, Enum):
     LUCKY = "lucky"
     KAMIKAZE = "kamikaze"
 
-    @staticmethod
-    def is_town_side(role: str | None) -> bool:
-        """Checks if a role belongs to the Town/Civilians faction."""
-        if not role:
-            return False
-        try:
-            r_id = RoleId(role)
-            return RoleRegistry.get(r_id).side == RoleSide.CIVILIAN
-        except ValueError:
-            return False
-
-    @staticmethod
-    def is_mafia_side(role: str | None) -> bool:
-        """Checks if a role belongs to the Mafia faction."""
-        if not role:
-            return False
-        try:
-            r_id = RoleId(role)
-            return RoleRegistry.get(r_id).side == RoleSide.MAFIA
-        except ValueError:
-            return False
-
-
 class RoleMetadata(BaseModel):
     id: RoleId
     name: str
