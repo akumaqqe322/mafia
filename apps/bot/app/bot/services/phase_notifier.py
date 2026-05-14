@@ -9,6 +9,7 @@ from app.bot.renderers.phase import (
 )
 from app.bot.services.night_actions import send_night_action_menus
 from app.core.game.schemas import GamePhase, GameState
+from app.infrastructure.repositories.phase_notification_repository import PhaseNotificationRepository
 from app.infrastructure.repositories.player_game_repository import PlayerGameRepository
 
 
@@ -21,9 +22,11 @@ class TelegramGameNotifier:
         self,
         bot: Bot,
         player_game_repository: PlayerGameRepository,
+        phase_notification_repository: PhaseNotificationRepository,
     ) -> None:
         self.bot = bot
         self.player_game_repository = player_game_repository
+        self.phase_notification_repository = phase_notification_repository
 
     async def notify_phase_change(
         self,
@@ -33,7 +36,21 @@ class TelegramGameNotifier:
         """
         Sends notifications to group chat (and players if needed) based on phase transition.
         Does not raise Telegram exceptions to prevent worker crashes.
+        Uses PhaseNotificationRepository to avoid duplicate notifications for same version.
         """
+        # Dedupe by (game_id, version)
+        was_marked = await self.phase_notification_repository.try_mark_notified(
+            new_state.game_id,
+            new_state.version,
+        )
+
+        if not was_marked:
+            # If already notified, we still want to ensure cleanup if it's FINISHED
+            # (cleanup is idempotent and safe to repeat)
+            if new_state.phase == GamePhase.FINISHED:
+                await self._clear_player_game_mappings(new_state)
+            return
+
         phase = new_state.phase
 
         if phase == GamePhase.NIGHT:
@@ -59,11 +76,14 @@ class TelegramGameNotifier:
             await self._send_group_message(new_state, text)
 
             # 2. Cleanup player mappings
-            for player in new_state.players:
-                # We don't catch exceptions here because clear_active_game (Redis)
-                # is expected to be stable. Error in one player won't block others
-                # if we were to wrap it, but for MVP simple loop is enough.
-                await self.player_game_repository.clear_active_game(player.telegram_id)
+            await self._clear_player_game_mappings(new_state)
+
+    async def _clear_player_game_mappings(self, state: GameState) -> None:
+        """Removes active game association for all players in this game."""
+        for player in state.players:
+            # We don't catch exceptions here because clear_active_game (Redis)
+            # is expected to be stable. Error in one player won't block others.
+            await self.player_game_repository.clear_active_game(player.telegram_id)
 
     async def _send_group_message(self, state: GameState, text: str) -> None:
         """

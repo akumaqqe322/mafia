@@ -8,6 +8,7 @@ from app.infrastructure.redis import RedisClient
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.chat_repository import ChatRepository
 from app.infrastructure.repositories.game_invite_repository import GameInviteRepository
+from app.infrastructure.repositories.phase_notification_repository import PhaseNotificationRepository
 from app.infrastructure.repositories.player_game_repository import PlayerGameRepository
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
 from app.infrastructure.repositories.user_repository import UserRepository
@@ -24,6 +25,7 @@ class Container:
         self.active_game_registry = ActiveGameRegistry(self.redis)
         self.game_invite_repository = GameInviteRepository(self.redis)
         self.player_game_repository = PlayerGameRepository(self.redis)
+        self.phase_notification_repository = PhaseNotificationRepository(self.redis)
         self.game_engine = GameEngine(
             self.game_repository,
             self.active_game_registry,
