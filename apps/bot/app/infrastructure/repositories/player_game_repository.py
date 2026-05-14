@@ -19,11 +19,11 @@ class PlayerGameRepository:
 
     async def set_active_game(self, telegram_id: int, game_id: UUID) -> None:
         key = self._get_key(telegram_id)
-        await self.redis.set(key, str(game_id), ex=self.ttl)
+        await self.redis.client.set(key, str(game_id), ex=self.ttl)
 
     async def get_active_game(self, telegram_id: int) -> UUID | None:
         key = self._get_key(telegram_id)
-        result = await self.redis.get(key)
+        result = await self.redis.client.get(key)
         if result:
             if isinstance(result, bytes):
                 result = result.decode()
@@ -35,7 +35,7 @@ class PlayerGameRepository:
 
     async def clear_active_game(self, telegram_id: int) -> None:
         key = self._get_key(telegram_id)
-        await self.redis.delete(key)
+        await self.redis.client.delete(key)
 
     async def remove_active_game(self, telegram_id: int) -> None:
         """Alias for clear_active_game for compatibility."""
