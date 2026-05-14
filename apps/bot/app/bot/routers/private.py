@@ -19,11 +19,92 @@ from app.core.game.engine import (
     PlayerNotAliveError,
     PlayerNotInGameError,
 )
+from app.bot.services import (
+    MAX_MAFIA_CHAT_MESSAGE_LENGTH,
+    can_send_mafia_chat,
+    get_mafia_chat_recipients,
+    relay_mafia_chat_message,
+    validate_mafia_chat_text,
+)
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase
 from app.infrastructure.container import Container
 
 router = Router()
+
+
+@router.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
+async def handle_private_text(
+    message: types.Message, container: Container
+) -> None:
+    """Relays private text messages to mafia teammates during NIGHT phase."""
+    if not message.from_user or not message.text:
+        return
+
+    # Filter out commands just in case
+    if message.text.startswith("/"):
+        return
+
+    # 1. Validate text
+    text = validate_mafia_chat_text(message.text)
+    if not text:
+        await message.answer(
+            f"Сообщение пустое или слишком длинное. Лимит — {MAX_MAFIA_CHAT_MESSAGE_LENGTH} символов."
+        )
+        return
+
+    # 2. Resolve game
+    game_id = await container.player_game_repository.get_active_game(
+        message.from_user.id
+    )
+    if not game_id:
+        # Ignore text from players not in game to avoid noisy "you are not in game" errors
+        return
+
+    # 3. Get state and validate phase
+    state = await container.game_repository.get(game_id)
+    if not state:
+        await message.answer("Активная игра не найдена.")
+        return
+
+    if state.phase != GamePhase.NIGHT:
+        await message.answer("Сейчас мафиозный чат недоступен.")
+        return
+
+    # 4. Resolve sender and validate eligibility
+    sender = next(
+        (p for p in state.players if p.telegram_id == message.from_user.id), None
+    )
+    if not sender:
+        await message.answer("Ты не участвуешь в этой игре.")
+        return
+
+    # Provide better feedback for dead mafia members
+    is_mafia_side = sender.role in {RoleId.MAFIA.value, RoleId.DON.value}
+    if is_mafia_side and not sender.is_alive:
+        await message.answer("Ты уже не можешь отправлять сообщения мафии.")
+        return
+
+    if not can_send_mafia_chat(sender):
+        await message.answer("Сейчас это сообщение никуда не отправлено.")
+        return
+
+    # 5. Check recipients
+    recipients = get_mafia_chat_recipients(state, sender)
+    if not recipients:
+        await message.answer("Сейчас некому отправить сообщение.")
+        return
+
+    # 6. Relay
+    bot = message.bot
+    if not bot:
+        return
+
+    delivered = await relay_mafia_chat_message(bot, state, sender, text)
+    if delivered > 0:
+        await message.answer("✅ Сообщение отправлено союзникам.")
+    else:
+        await message.answer("Не удалось доставить сообщение союзникам.")
 
 
 @router.message(CommandStart())

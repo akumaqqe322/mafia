@@ -1,6 +1,9 @@
 import html
 from typing import Final
 
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
+
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GameState, PlayerState
 
@@ -80,3 +83,32 @@ def render_mafia_chat_message(
         f"💬 Сообщение от <b>{sender_name}</b>:\n"
         f"{message_text}"
     )
+
+
+async def relay_mafia_chat_message(
+    bot: Bot,
+    state: GameState,
+    sender: PlayerState,
+    text: str,
+) -> int:
+    """
+    Sends rendered mafia chat message to recipients.
+    Returns number of successful deliveries.
+    """
+    recipients = get_mafia_chat_recipients(state, sender)
+    rendered = render_mafia_chat_message(sender, text)
+    delivered_count = 0
+
+    for recipient in recipients:
+        try:
+            await bot.send_message(
+                chat_id=recipient.telegram_id,
+                text=rendered,
+                parse_mode="HTML",
+            )
+            delivered_count += 1
+        except (TelegramForbiddenError, TelegramAPIError):
+            # Skip recipients who blocked the bot or other API errors
+            continue
+
+    return delivered_count
