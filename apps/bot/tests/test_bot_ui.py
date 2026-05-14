@@ -3,11 +3,14 @@ from uuid import uuid4
 
 from app.bot.callbacks import LobbyCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
+from app.bot.keyboards.night_action import build_night_action_keyboard
 from app.bot.presets import select_preset_for_players
 from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.role import render_role_dm
+from app.bot.renderers.night_action import render_night_action_dm
 from app.bot.utils import build_join_url
+from app.core.game.actions import NightActionType
 from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
 
@@ -196,3 +199,59 @@ def test_lobby_keyboard_uses_url() -> None:
     assert join_button.text == "Join ✅"
     assert join_button.url == "https://example.com"
     assert join_button.callback_data is None
+
+
+def test_render_night_action_dm() -> None:
+    output = render_night_action_dm(NightActionType.KILL)
+    assert "Выберите цель" in output
+    assert "🔫" in output
+
+
+def test_build_night_action_keyboard() -> None:
+    alice_id = uuid4()
+    bob_id = uuid4()
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.NIGHT,
+        phase_started_at=datetime.now(timezone.utc),
+        settings=GameSettings(),
+        players=[
+            PlayerState(
+                user_id=alice_id,
+                telegram_id=456,
+                display_name="Alice",
+                role=RoleId.MAFIA.value,
+            ),
+            PlayerState(
+                user_id=bob_id,
+                telegram_id=789,
+                display_name="Bob",
+            ),
+        ],
+    )
+    actor = state.players[0]  # Alice
+
+    # Mafia kill action
+    kb = build_night_action_keyboard(state, actor, NightActionType.KILL)
+    # Alice should see Bob but NOT herself
+    buttons = [b for row in kb.inline_keyboard for b in row]
+    assert len(buttons) == 1
+    assert buttons[0].text == "Bob"
+    assert buttons[0].callback_data == f"na:kill:{bob_id}"
+
+    # Doctor heal action (can heal self)
+    kb = build_night_action_keyboard(state, actor, NightActionType.HEAL)
+    buttons = [b for row in kb.inline_keyboard for b in row]
+    assert len(buttons) == 2
+    display_names = [b.text for b in buttons]
+    assert "Alice" in display_names
+    assert "Bob" in display_names
+
+
+def test_night_action_callback_encoding_length() -> None:
+    # Test that na:<action>:<uuid> is within 64 bytes
+    target_id = uuid4()
+    cb_data = f"na:kill:{target_id}"
+    assert len(cb_data.encode("utf-8")) <= 64

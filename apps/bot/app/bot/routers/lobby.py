@@ -7,10 +7,13 @@ from aiogram.filters import Command
 from app.bot.callbacks import LobbyCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.presets import select_preset_for_players
+from app.bot.keyboards.night_action import build_night_action_keyboard
 from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.role import render_role_dm
+from app.bot.renderers.night_action import render_night_action_dm
 from app.bot.utils import build_join_url
+from app.core.game.actions import get_allowed_night_actions
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameNotFoundError,
@@ -229,10 +232,15 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
         # 2. Cleanup invite token
         await container.game_invite_repository.delete_by_game_id(active_game_id)
 
-        # 3. Send roles privately
+        # 3. Send roles and action menus
         # TODO: strict DM validation before start / remove blocked players
         dm_failed_players = []
         for player in started_state.players:
+            # Always map player to game for DM interactions
+            await container.player_game_repository.set_active_game(
+                player.telegram_id, active_game_id
+            )
+
             if player.role is None:
                 continue
 
@@ -243,11 +251,27 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
                 continue
 
             try:
+                # Send Role DM
                 await bot.send_message(
                     chat_id=player.telegram_id,
                     text=render_role_dm(role_id),
                     parse_mode="HTML",
                 )
+
+                # Send Night Action Menu if player has actions
+                allowed_actions = get_allowed_night_actions(role_id)
+                if allowed_actions and player.is_alive:
+                    # For MVP, we only send the first allowed action menu if there are many.
+                    # Usually there's only one.
+                    action_type = list(allowed_actions)[0]
+                    await bot.send_message(
+                        chat_id=player.telegram_id,
+                        text=render_night_action_dm(action_type),
+                        reply_markup=build_night_action_keyboard(
+                            started_state, player, action_type
+                        ),
+                        parse_mode="HTML",
+                    )
             except (TelegramForbiddenError, TelegramAPIError):
                 dm_failed_players.append(player.display_name)
 
