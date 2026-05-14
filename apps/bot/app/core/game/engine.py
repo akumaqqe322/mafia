@@ -15,7 +15,9 @@ from app.core.game.locks import GameLockManager
 from app.core.game.roles import PresetRegistry, RoleId
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
-from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
+from app.infrastructure.repositories.redis_game_repository import (
+    RedisGameStateRepository,
+)
 
 
 class GameEngineException(Exception):
@@ -125,7 +127,9 @@ class GameEngine:
                 raise InvalidGamePhaseError(f"Cannot join game in {state.phase} phase")
 
             if any(p.user_id == user_id for p in state.players):
-                raise PlayerAlreadyInGameError(f"User {user_id} already in game {game_id}")
+                raise PlayerAlreadyInGameError(
+                    f"User {user_id} already in game {game_id}"
+                )
 
             if len(state.players) >= state.settings.max_players:
                 raise GameFullError(f"Game {game_id} is full")
@@ -148,7 +152,9 @@ class GameEngine:
                 raise GameNotFoundError(f"Game {game_id} not found")
 
             if state.phase != GamePhase.LOBBY:
-                raise InvalidGamePhaseError(f"Cannot start game from {state.phase} phase")
+                raise InvalidGamePhaseError(
+                    f"Cannot start game from {state.phase} phase"
+                )
 
             preset = PresetRegistry.get_by_id(preset_id)
             players_count = len(state.players)
@@ -172,7 +178,9 @@ class GameEngine:
             now = datetime.now(timezone.utc)
             state.phase = GamePhase.NIGHT
             state.phase_started_at = now
-            state.phase_end_at = now + timedelta(seconds=state.settings.night_duration_sec)
+            state.phase_end_at = now + timedelta(
+                seconds=state.settings.night_duration_sec
+            )
             state.version += 1
 
             await self.state_repository.save(state)
@@ -239,7 +247,9 @@ class GameEngine:
                 raise GameNotFoundError(f"Game {game_id} not found")
 
             await self.state_repository.delete(game_id)
-            await self.active_game_registry.remove_active_game(game_id, state.telegram_chat_id)
+            await self.active_game_registry.remove_active_game(
+                game_id, state.telegram_chat_id
+            )
 
     async def submit_night_action(
         self,
@@ -254,11 +264,15 @@ class GameEngine:
                 raise GameNotFoundError(f"Game {game_id} not found")
 
             if state.phase != GamePhase.NIGHT:
-                raise InvalidGamePhaseError(f"Cannot submit night action in {state.phase} phase")
+                raise InvalidGamePhaseError(
+                    f"Cannot submit night action in {state.phase} phase"
+                )
 
             actor = next((p for p in state.players if p.user_id == actor_user_id), None)
             if not actor:
-                raise PlayerNotInGameError(f"User {actor_user_id} not in game {game_id}")
+                raise PlayerNotInGameError(
+                    f"User {actor_user_id} not in game {game_id}"
+                )
 
             if not actor.is_alive:
                 raise PlayerNotAliveError(f"Actor {actor_user_id} is dead")
@@ -268,8 +282,10 @@ class GameEngine:
 
             try:
                 actor_role = RoleId(actor.role)
-            except ValueError:
-                raise InvalidNightActionError(f"Actor {actor_user_id} has invalid role: {actor.role}")
+            except ValueError as exc:
+                raise InvalidNightActionError(
+                    f"Actor {actor_user_id} has invalid role: {actor.role}"
+                ) from exc
 
             allowed_actions = get_allowed_night_actions(actor_role)
             if action_type not in allowed_actions:
@@ -281,7 +297,9 @@ class GameEngine:
                 raise InvalidNightActionError(f"Action {action_type} requires a target")
 
             if target_user_id:
-                target = next((p for p in state.players if p.user_id == target_user_id), None)
+                target = next(
+                    (p for p in state.players if p.user_id == target_user_id), None
+                )
                 if not target:
                     raise InvalidNightActionError(f"Target {target_user_id} not in game")
                 if not target.is_alive:

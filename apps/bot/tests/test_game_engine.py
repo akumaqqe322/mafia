@@ -57,7 +57,9 @@ async def test_create_game_success(game_engine: GameEngine) -> None:
     assert persisted.game_id == game_id
 
     # Verify registry
-    active_id = await game_engine.active_game_registry.get_active_game_by_chat(tg_chat_id)
+    active_id = await game_engine.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
     assert active_id == game_id
 
 
@@ -137,7 +139,10 @@ async def test_cancel_game_success(game_engine: GameEngine) -> None:
     await game_engine.cancel_game(game_id)
 
     assert await game_engine.state_repository.get(game_id) is None
-    assert await game_engine.active_game_registry.get_active_game_by_chat(tg_chat_id) is None
+    assert (
+        await game_engine.active_game_registry.get_active_game_by_chat(tg_chat_id)
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -346,7 +351,9 @@ async def test_submit_night_action_replace(game_engine: GameEngine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_submit_night_action_invalid_role_mismatch(game_engine: GameEngine) -> None:
+async def test_submit_night_action_invalid_role_mismatch(
+    game_engine: GameEngine,
+) -> None:
     game_id = uuid4()
     await game_engine.create_game(game_id, uuid4(), 123)
     for i in range(5):

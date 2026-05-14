@@ -34,7 +34,8 @@ class NightAction(BaseModel):
 def serialize_night_actions(
     actions: list[NightAction],
 ) -> dict[str, dict[str, object]]:
-    """Serializes a list of night actions into a dictionary where the key is the actor's user ID."""
+    """Serializes a list of night actions into a dictionary where the key is the
+    actor's user ID."""
     return {str(a.actor_user_id): a.model_dump(mode="json") for a in actions}
 
 

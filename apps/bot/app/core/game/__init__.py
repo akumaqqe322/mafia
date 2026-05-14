@@ -1,9 +1,3 @@
-from app.core.game.assignment import (
-    InvalidPlayerCountError,
-    InvalidRolePresetError,
-    RoleAssignmentError,
-    RoleAssignmentService,
-)
 from app.core.game.actions import (
     NightAction,
     NightActionType,
@@ -11,6 +5,12 @@ from app.core.game.actions import (
     get_allowed_night_actions,
     night_action_requires_target,
     serialize_night_actions,
+)
+from app.core.game.assignment import (
+    InvalidPlayerCountError,
+    InvalidRolePresetError,
+    RoleAssignmentError,
+    RoleAssignmentService,
 )
 from app.core.game.engine import (
     GameAlreadyExistsError,
@@ -20,9 +20,9 @@ from app.core.game.engine import (
     GameNotFoundError,
     InvalidGamePhaseError,
     InvalidNightActionError,
-    PlayerNotAliveError,
     NotEnoughPlayersError,
     PlayerAlreadyInGameError,
+    PlayerNotAliveError,
     PlayerNotInGameError,
 )
 from app.core.game.locks import GameLockManager
