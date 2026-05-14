@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.game.events import GameEvent
+
 
 class GamePhase(str, Enum):
     LOBBY = "lobby"
@@ -44,6 +46,7 @@ class GameState(BaseModel):
     lobby_message_id: int | None = None
     creator_telegram_id: int | None = None
     version: int = 1
+    last_events: list[GameEvent] = Field(default_factory=list)
 
     @field_validator("phase_started_at", "phase_end_at")
     @classmethod

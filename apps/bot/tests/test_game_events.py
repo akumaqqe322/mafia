@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from app.core.game.events import EventVisibility, GameEvent, GameEventType
+from app.core.game.schemas import GamePhase, GameState
 
 
 def test_game_event_defaults_event_id() -> None:
@@ -81,3 +83,90 @@ def test_public_day_vote_tie_event_shape() -> None:
     assert len(event.related_user_ids) == 2
     assert u1 in event.related_user_ids
     assert u2 in event.related_user_ids
+
+
+def test_game_state_last_events_default_empty() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert state.last_events == []
+
+
+def test_game_state_last_events_default_is_independent() -> None:
+    state1 = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    state2 = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=2,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+
+    event = GameEvent(
+        type=GameEventType.NIGHT_NO_DEATHS,
+        visibility=EventVisibility.PUBLIC,
+    )
+    state1.last_events.append(event)
+
+    assert len(state1.last_events) == 1
+    assert len(state2.last_events) == 0
+
+
+def test_game_state_accepts_last_events() -> None:
+    event = GameEvent(
+        type=GameEventType.DAY_PLAYER_EXECUTED,
+        visibility=EventVisibility.PUBLIC,
+        target_user_id=uuid4(),
+    )
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        last_events=[event],
+    )
+    assert len(state.last_events) == 1
+    assert state.last_events[0].type == GameEventType.DAY_PLAYER_EXECUTED
+
+
+def test_game_state_last_events_serializes_to_json() -> None:
+    event = GameEvent(
+        type=GameEventType.DAY_VOTE_TIE,
+        visibility=EventVisibility.PUBLIC,
+        related_user_ids=[uuid4(), uuid4()],
+    )
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        last_events=[event],
+    )
+
+    dump = state.model_dump(mode="json")
+    assert "last_events" in dump
+    assert len(dump["last_events"]) == 1
+    assert dump["last_events"][0]["type"] == "day_vote_tie"
+    assert dump["last_events"][0]["visibility"] == "public"
+    assert len(dump["last_events"][0]["related_user_ids"]) == 2
+
+
+def test_game_state_backward_compatible_without_last_events() -> None:
+    # Simulating loading from old Redis data (no last_events key)
+    data = {
+        "game_id": str(uuid4()),
+        "chat_id": str(uuid4()),
+        "telegram_chat_id": 123,
+        "phase": "lobby",
+        "phase_started_at": datetime.now(timezone.utc).isoformat(),
+        "version": 1,
+    }
+    state = GameState.model_validate(data)
+    assert state.last_events == []
