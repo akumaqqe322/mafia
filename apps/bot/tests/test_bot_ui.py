@@ -34,7 +34,46 @@ def test_render_lobby() -> None:
     assert "Alice" in output
     assert "Bob" in output
     assert "2/10" in output
-    assert "🎮 Mafia Lobby" in output
+    assert "🎭 Mafia Lobby" in output
+    # Ensure role is not leaked
+    assert "MAFIA" not in output
+    assert "CITIZEN" not in output
+
+
+def test_render_lobby_empty_state() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        settings=GameSettings(),
+        players=[],
+    )
+    output = render_lobby(state)
+    assert "Пока никто не присоединился" in output
+    assert "0/10" in output
+
+
+def test_render_lobby_escapes_html() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        settings=GameSettings(),
+        players=[
+            PlayerState(
+                user_id=uuid4(),
+                telegram_id=456,
+                display_name="<b>Evil</b>",
+            ),
+        ],
+    )
+    output = render_lobby(state)
+    assert "&lt;b&gt;Evil&lt;/b&gt;" in output
+    assert "<b>Evil</b>" not in output
 
 
 def test_callback_data_length() -> None:
@@ -43,9 +82,13 @@ def test_callback_data_length() -> None:
         assert len(cb.value.encode("utf-8")) <= 64
 
 
-def test_build_join_url() -> None:
-    url = build_join_url("my_bot", "token123")
-    assert url == "https://t.me/my_bot?start=join_token123"
+def test_build_join_url_and_payload() -> None:
+    token = "abcdefgh12345678"  # typical urlsafe token
+    url = build_join_url("my_bot", token)
+    assert url == f"https://t.me/my_bot?start=join_{token}"
+    # Payload is "join_..."
+    payload = f"join_{token}"
+    assert len(payload.encode("utf-8")) <= 64
 
 
 def test_lobby_keyboard_uses_url() -> None:

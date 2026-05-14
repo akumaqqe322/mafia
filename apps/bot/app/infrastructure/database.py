@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import structlog
@@ -38,6 +39,7 @@ class Database:
         await self.engine.dispose()
         log.info("Database connection closed")
 
+    @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         async with self.session_factory() as session:
             try:

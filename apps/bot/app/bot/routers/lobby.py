@@ -43,18 +43,11 @@ async def cmd_game(message: types.Message, container: Container) -> None:
 
     async with container.db.get_session() as session:
         chat_repo = container.get_chat_repository(session)
-        user_repo = container.get_user_repository(session)
 
         chat = await chat_repo.get_or_create(
             telegram_chat_id=tg_chat_id,
             title=message.chat.title,
             chat_type=message.chat.type,
-        )
-        user = await user_repo.get_or_create(
-            telegram_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-            last_name=message.from_user.last_name,
         )
         await session.commit()
 
@@ -64,18 +57,6 @@ async def cmd_game(message: types.Message, container: Container) -> None:
                 game_id=game_id,
                 chat_id=chat.id,
                 telegram_chat_id=tg_chat_id,
-            )
-            # Auto join creator
-            display_name = (
-                user.username
-                or user.first_name
-                or f"User {user.telegram_id}"
-            )
-            state = await container.game_engine.join_game(
-                game_id=game_id,
-                user_id=user.id,
-                telegram_id=user.telegram_id,
-                display_name=display_name,
             )
 
             # Create invite token
@@ -99,66 +80,11 @@ async def cmd_game(message: types.Message, container: Container) -> None:
 
 @router.callback_query(F.data == LobbyCallback.JOIN.value)
 async def handle_join(callback: types.CallbackQuery, container: Container) -> None:
-    message = _get_callback_message(callback)
-    if message is None or not callback.from_user:
-        if not callback.from_user:
-            return
-        await callback.answer(
-            "This lobby message is no longer available.",
-            show_alert=True,
-        )
-        return
-
-    tg_chat_id = message.chat.id
-    active_game_id = await container.active_game_registry.get_active_game_by_chat(
-        tg_chat_id
+    """Inform user they must join via private message deep-link."""
+    await callback.answer(
+        "Нажми кнопку Join со ссылкой, чтобы открыть ЛС с ботом и войти в игру.",
+        show_alert=True,
     )
-
-    if not active_game_id:
-        await callback.answer("No active game found.", show_alert=True)
-        return
-
-    async with container.db.get_session() as session:
-        user_repo = container.get_user_repository(session)
-        user = await user_repo.get_or_create(
-            telegram_id=callback.from_user.id,
-            username=callback.from_user.username,
-            first_name=callback.from_user.first_name,
-            last_name=callback.from_user.last_name,
-        )
-        await session.commit()
-
-    try:
-        display_name = (
-            user.username
-            or user.first_name
-            or f"User {user.telegram_id}"
-        )
-        state = await container.game_engine.join_game(
-            game_id=active_game_id,
-            user_id=user.id,
-            telegram_id=user.telegram_id,
-            display_name=display_name,
-        )
-
-        # Get invite URL
-        token = await container.game_invite_repository.create_invite(active_game_id)
-        bot_info = await message.bot.get_me() if message.bot else None
-        bot_username = bot_info.username if bot_info else "mafia_bot"
-        invite_url = build_join_url(bot_username, token)
-
-        await message.edit_text(
-            render_lobby(state),
-            reply_markup=build_lobby_keyboard(invite_url),
-            parse_mode="HTML",
-        )
-        await callback.answer("You joined the game!")
-    except PlayerAlreadyInGameError:
-        await callback.answer("You are already in the game!", show_alert=True)
-    except GameFullError:
-        await callback.answer("Game is full!", show_alert=True)
-    except GameNotFoundError:
-        await callback.answer("Game not found.", show_alert=True)
 
 
 @router.callback_query(F.data == LobbyCallback.LEAVE.value)
