@@ -25,6 +25,9 @@ from app.bot.services import (
     can_send_mafia_chat,
     get_mafia_chat_recipients,
     is_mafia_chat_phase,
+    is_lobby_creator,
+    is_group_admin,
+    can_manage_game,
     render_mafia_chat_message,
     validate_mafia_chat_text,
 )
@@ -32,6 +35,10 @@ from app.bot.utils import build_join_url
 from app.core.game.actions import NightActionType
 from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
+import pytest
+from unittest.mock import MagicMock
 
 
 def test_select_preset_for_supported_count() -> None:
@@ -642,3 +649,108 @@ def test_is_mafia_chat_phase() -> None:
     assert is_mafia_chat_phase(GamePhase.VOTING) is True
     assert is_mafia_chat_phase(GamePhase.LOBBY) is False
     assert is_mafia_chat_phase(GamePhase.FINISHED) is False
+
+
+def test_is_lobby_creator() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        creator_telegram_id=111,
+    )
+    assert is_lobby_creator(state, 111) is True
+    assert is_lobby_creator(state, 222) is False
+
+
+def test_is_lobby_creator_none() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        creator_telegram_id=None,
+    )
+    assert is_lobby_creator(state, 111) is False
+
+
+class FakeChatMember:
+    def __init__(self, status: str) -> None:
+        self.status = status
+
+
+class FakeBot:
+    def __init__(self, status: str | None = None, should_fail: bool = False) -> None:
+        self.status = status
+        self.should_fail = should_fail
+
+    async def get_chat_member(self, chat_id: int, user_id: int) -> FakeChatMember:
+        if self.should_fail:
+            # We use a mock-like behavior since constructor requires method/message
+            raise TelegramAPIError(method=MagicMock(), message="boom")
+        return FakeChatMember(self.status or "member")
+
+
+@pytest.mark.asyncio
+async def test_is_group_admin_true() -> None:
+    bot = FakeBot(status="creator")
+    assert await is_group_admin(bot, 123, 111) is True
+
+    bot = FakeBot(status="administrator")
+    assert await is_group_admin(bot, 123, 111) is True
+
+
+@pytest.mark.asyncio
+async def test_is_group_admin_false() -> None:
+    bot = FakeBot(status="member")
+    assert await is_group_admin(bot, 123, 111) is False
+
+
+@pytest.mark.asyncio
+async def test_is_group_admin_error() -> None:
+    bot = FakeBot(should_fail=True)
+    assert await is_group_admin(bot, 123, 111) is False
+
+
+@pytest.mark.asyncio
+async def test_can_manage_game_creator() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        creator_telegram_id=111,
+    )
+    bot = FakeBot(status="member")  # Not admin, but creator
+    assert await can_manage_game(bot, state, 111) is True
+
+
+@pytest.mark.asyncio
+async def test_can_manage_game_admin() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        creator_telegram_id=222,
+    )
+    bot = FakeBot(status="administrator")  # Admin, but not creator
+    assert await can_manage_game(bot, state, 111) is True
+
+
+@pytest.mark.asyncio
+async def test_can_manage_game_denied() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.LOBBY,
+        phase_started_at=datetime.now(timezone.utc),
+        creator_telegram_id=222,
+    )
+    bot = FakeBot(status="member")  # Neither admin nor creator
+    assert await can_manage_game(bot, state, 111) is False

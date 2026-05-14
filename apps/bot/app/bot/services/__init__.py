@@ -10,6 +10,7 @@ from .mafia_chat import (
     validate_mafia_chat_text,
 )
 from .night_actions import send_night_action_menu_for_player, send_night_action_menus
+from .permissions import can_manage_game, is_group_admin, is_lobby_creator
 from .phase_notifier import TelegramGameNotifier
 
 __all__ = [
@@ -25,4 +26,7 @@ __all__ = [
     "is_mafia_chat_phase",
     "MAX_MAFIA_CHAT_MESSAGE_LENGTH",
     "MAFIA_CHAT_ACTIVE_PHASES",
+    "is_lobby_creator",
+    "is_group_admin",
+    "can_manage_game",
 ]
