@@ -8,7 +8,7 @@ class FakeRedisRawClient:
         self.data: dict[str, str | bytes] = {}
         self.sets: dict[str, set[str | bytes]] = {}
 
-    async def set(self, key: str, value: str | bytes) -> None:
+    async def set(self, key: str, value: str | bytes, **kwargs: Any) -> None:
         self.data[key] = value
 
     async def get(self, key: str) -> str | bytes | None:
