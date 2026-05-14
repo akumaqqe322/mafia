@@ -249,6 +249,7 @@ async def test_phase_worker_notifies_on_phase_change(
 
     assert len(notifier.calls) == 1
     old_st, new_st = notifier.calls[0]
+    assert old_st is not None
     assert old_st.phase == GamePhase.NIGHT
     assert new_st.phase == GamePhase.DAY
 
@@ -278,7 +279,9 @@ async def test_phase_worker_notifier_error_does_not_crash_worker(
     state_repo, registry = repositories
 
     class ErrorNotifier:
-        async def notify_phase_change(self, old, new) -> None:
+        async def notify_phase_change(
+            self, old_state: GameState | None, new_state: GameState
+        ) -> None:
             raise RuntimeError("Notification failed")
 
     worker = PhaseWorker(game_engine, state_repo, registry, notifier=ErrorNotifier())
@@ -309,7 +312,7 @@ def test_should_notify_phase_change_logic() -> None:
         telegram_chat_id=1,
         phase=GamePhase.NIGHT,
         players=p,
-        phase_started_at=datetime.now(),
+        phase_started_at=datetime.now(timezone.utc),
     )
     s_day = GameState(
         game_id=u,
@@ -317,7 +320,7 @@ def test_should_notify_phase_change_logic() -> None:
         telegram_chat_id=1,
         phase=GamePhase.DAY,
         players=p,
-        phase_started_at=datetime.now(),
+        phase_started_at=datetime.now(timezone.utc),
     )
 
     assert _should_notify_phase_change(None, s_night) is True
