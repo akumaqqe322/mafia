@@ -849,7 +849,11 @@ def test_render_day_vote_started_contains_expected_text() -> None:
 
 def test_render_day_vote_result_executed() -> None:
     target_id = uuid4()
-    p_target = make_player(role=RoleId.MAFIA.value, display_name="Alice", telegram_id=100)
+    p_target = make_player(
+        role=RoleId.MAFIA.value,
+        display_name="Alice",
+        telegram_id=100,
+    )
     p_target.user_id = target_id
 
     event = GameEvent(
@@ -966,3 +970,31 @@ def test_render_day_vote_result_escapes_player_names() -> None:
     assert text is not None
     assert "&lt;script&gt;Alice&lt;/script&gt;" in text
     assert "<script>" not in text
+
+
+def test_render_day_vote_result_does_not_reveal_ids() -> None:
+    target_id = uuid4()
+    p_target = make_player(None, display_name="Alice")
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.DAY_PLAYER_EXECUTED,
+        visibility=EventVisibility.PUBLIC,
+        target_user_id=target_id,
+        payload={"votes_count": 3},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+        last_events=[event],
+    )
+
+    text = render_day_vote_result(state)
+    assert text is not None
+    assert str(target_id) not in text
+    assert str(state.game_id) not in text
+    assert str(state.chat_id) not in text

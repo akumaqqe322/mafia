@@ -45,7 +45,7 @@ def render_day_vote_result(state: GameState) -> str | None:
         votes_count = vote_event.payload.get("votes_count")
 
         text = f"{header}Город сделал выбор: <b>{name}</b>.\nИгрок покидает игру."
-        if isinstance(votes_count, int):
+        if type(votes_count) is int:
             text += f"\n\nГолосов: {votes_count}"
         return text
 
@@ -60,7 +60,7 @@ def render_day_vote_result(state: GameState) -> str | None:
             f"{header}Голоса разделились между: <b>{candidates_text}</b>.\n"
             "Сегодня никто не покинул город."
         )
-        if isinstance(votes_count, int):
+        if type(votes_count) is int:
             text += f"\n\nГолосов у лидеров: {votes_count}"
         return text
 
