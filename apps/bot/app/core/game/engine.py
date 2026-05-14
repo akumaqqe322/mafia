@@ -206,29 +206,36 @@ class GameEngine:
             if state.phase == GamePhase.LOBBY:
                 raise InvalidGamePhaseError(f"Cannot advance from {state.phase} phase")
 
-            now = datetime.now(timezone.utc)
-            duration_sec: int
-
-            if state.phase == GamePhase.NIGHT:
-                state.phase = GamePhase.DAY
-                duration_sec = state.settings.day_duration_sec
-            elif state.phase == GamePhase.DAY:
-                state.phase = GamePhase.VOTING
-                duration_sec = state.settings.voting_duration_sec
-            elif state.phase == GamePhase.VOTING:
-                state.phase = GamePhase.NIGHT
-                duration_sec = state.settings.night_duration_sec
-            else:
-                raise InvalidGamePhaseError(
-                    f"Phase {state.phase} is not supported for auto-advance"
-                )
-
-            state.phase_started_at = now
-            state.phase_end_at = now + timedelta(seconds=duration_sec)
+            self._advance_phase_in_state(state)
             state.version += 1
 
             await self.state_repository.save(state)
             return state
+
+    def _advance_phase_in_state(
+        self, state: GameState, now: datetime | None = None
+    ) -> None:
+        """Transitions state to next phase without locks or saves."""
+        if not now:
+            now = datetime.now(timezone.utc)
+
+        duration_sec: int
+        if state.phase == GamePhase.NIGHT:
+            state.phase = GamePhase.DAY
+            duration_sec = state.settings.day_duration_sec
+        elif state.phase == GamePhase.DAY:
+            state.phase = GamePhase.VOTING
+            duration_sec = state.settings.voting_duration_sec
+        elif state.phase == GamePhase.VOTING:
+            state.phase = GamePhase.NIGHT
+            duration_sec = state.settings.night_duration_sec
+        else:
+            raise InvalidGamePhaseError(
+                f"Phase {state.phase} is not supported for auto-advance"
+            )
+
+        state.phase_started_at = now
+        state.phase_end_at = now + timedelta(seconds=duration_sec)
 
     async def leave_game(self, game_id: UUID, user_id: UUID) -> GameState:
         async with self.lock_manager.lock(game_id):
@@ -348,6 +355,26 @@ class GameEngine:
         state.phase_end_at = None
         state.winner_side = winner_side.value
 
+    def _resolve_night_in_state(self, state: GameState) -> NightResolutionResult:
+        """Core night resolution logic without locks or saves."""
+        result = NightResolver.resolve(state)
+
+        # Apply deaths
+        for killed_id in result.killed_user_ids:
+            player = next((p for p in state.players if p.user_id == killed_id), None)
+            if player:
+                player.is_alive = False
+
+        # Clear actions for next night
+        state.night_actions = {}
+
+        # Check victory
+        victory_result = VictoryConditionService.check(state)
+        if victory_result.winner_side != WinnerSide.NONE:
+            self._apply_victory_to_state(state, victory_result.winner_side)
+
+        return result
+
     async def resolve_night(self, game_id: UUID) -> NightResolutionResult:
         async with self.lock_manager.lock(game_id):
             state = await self.state_repository.get(game_id)
@@ -359,28 +386,15 @@ class GameEngine:
                     f"Cannot resolve night in {state.phase} phase"
                 )
 
-            result = NightResolver.resolve(state)
-
-            # Apply deaths
-            for killed_id in result.killed_user_ids:
-                player = next((p for p in state.players if p.user_id == killed_id), None)
-                if player:
-                    player.is_alive = False
-
-            # Clear actions for next night
-            state.night_actions = {}
+            result = self._resolve_night_in_state(state)
             state.version += 1
+            await self.state_repository.save(state)
 
-            # Check victory
-            victory_result = VictoryConditionService.check(state)
-            if victory_result.winner_side != WinnerSide.NONE:
-                self._apply_victory_to_state(state, victory_result.winner_side)
-                await self.state_repository.save(state)
+            if state.phase == GamePhase.FINISHED:
                 await self.active_game_registry.remove_active_game(
                     game_id, state.telegram_chat_id
                 )
-            else:
-                await self.state_repository.save(state)
+
             return result
 
     async def submit_day_vote(
@@ -422,6 +436,28 @@ class GameEngine:
             await self.state_repository.save(state)
             return state
 
+    def _resolve_day_votes_in_state(self, state: GameState) -> DayVoteResolutionResult:
+        """Core day vote resolution logic without locks or saves."""
+        result = DayVoteResolver.resolve(state)
+
+        if result.executed_user_id:
+            player = next(
+                (p for p in state.players if p.user_id == result.executed_user_id),
+                None,
+            )
+            if player:
+                player.is_alive = False
+
+        # Clear votes for next day
+        state.votes = {}
+
+        # Check victory
+        victory_result = VictoryConditionService.check(state)
+        if victory_result.winner_side != WinnerSide.NONE:
+            self._apply_victory_to_state(state, victory_result.winner_side)
+
+        return result
+
     async def resolve_day_votes(self, game_id: UUID) -> DayVoteResolutionResult:
         async with self.lock_manager.lock(game_id):
             state = await self.state_repository.get(game_id)
@@ -433,28 +469,46 @@ class GameEngine:
                     f"Cannot resolve day votes in {state.phase} phase"
                 )
 
-            result = DayVoteResolver.resolve(state)
-
-            if result.executed_user_id:
-                player = next(
-                    (p for p in state.players if p.user_id == result.executed_user_id),
-                    None,
-                )
-                if player:
-                    player.is_alive = False
-
-            # Clear votes for next day
-            state.votes = {}
+            result = self._resolve_day_votes_in_state(state)
             state.version += 1
+            await self.state_repository.save(state)
 
-            # Check victory
-            victory_result = VictoryConditionService.check(state)
-            if victory_result.winner_side != WinnerSide.NONE:
-                self._apply_victory_to_state(state, victory_result.winner_side)
-                await self.state_repository.save(state)
+            if state.phase == GamePhase.FINISHED:
                 await self.active_game_registry.remove_active_game(
                     game_id, state.telegram_chat_id
                 )
-            else:
-                await self.state_repository.save(state)
+
             return result
+
+    async def tick_game(self, game_id: UUID) -> GameState:
+        """Processes time-based phase transitions and resolutions."""
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase in (GamePhase.FINISHED, GamePhase.LOBBY):
+                return state
+
+            now = datetime.now(timezone.utc)
+
+            if state.phase == GamePhase.NIGHT:
+                self._resolve_night_in_state(state)
+                if state.phase != GamePhase.FINISHED:
+                    self._advance_phase_in_state(state, now)
+            elif state.phase == GamePhase.DAY:
+                self._advance_phase_in_state(state, now)
+            elif state.phase == GamePhase.VOTING:
+                self._resolve_day_votes_in_state(state)
+                if state.phase != GamePhase.FINISHED:
+                    self._advance_phase_in_state(state, now)
+
+            state.version += 1
+            await self.state_repository.save(state)
+
+            if state.phase == GamePhase.FINISHED:
+                await self.active_game_registry.remove_active_game(
+                    game_id, state.telegram_chat_id
+                )
+
+            return state

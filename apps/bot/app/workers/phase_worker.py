@@ -48,11 +48,11 @@ class PhaseWorker:
 
                 if state.phase_end_at <= current_time:
                     logger.info(
-                        "Advancing phase for game %s (expired at %s)",
+                        "Ticking game %s (expired at %s)",
                         game_id,
                         state.phase_end_at,
                     )
-                    await self.game_engine.advance_phase(game_id)
+                    await self.game_engine.tick_game(game_id)
                     advanced_count += 1
             except GameEngineException as e:
                 logger.error("Error advancing game %s: %s", game_id, e)

@@ -1044,6 +1044,211 @@ async def test_create_game_after_previous_finished(game_engine: GameEngine) -> N
 
 
 @pytest.mark.asyncio
+async def test_tick_game_night_resolves_and_moves_to_day(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # 1 mafia + 3 civilians
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(3)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 100 + i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.MAFIA.value
+        for i in range(1, 4):
+            state.players[i].role = RoleId.CIVILIAN.value
+        state.phase = GamePhase.NIGHT
+        await game_engine.state_repository.save(state)
+
+    # Mafia kills civ0
+    await game_engine.submit_night_action(
+        game_id, p_mafia, NightActionType.KILL, p_civs[0]
+    )
+
+    state_before = await game_engine.state_repository.get(game_id)
+    assert state_before is not None
+    version_before = state_before.version
+
+    # Tick game
+    state = await game_engine.tick_game(game_id)
+
+    assert state.phase == GamePhase.DAY
+    assert state.version == version_before + 1
+    # Check civ0 is dead
+    civ0 = next(p for p in state.players if p.user_id == p_civs[0])
+    assert civ0.is_alive is False
+    assert state.night_actions == {}
+
+
+@pytest.mark.asyncio
+async def test_tick_game_voting_resolves_and_moves_to_night(
+    game_engine: GameEngine,
+) -> None:
+    game_id = uuid4()
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # 1 mafia + 3 civilians
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(3)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 100 + i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.MAFIA.value
+        for i in range(1, 4):
+            state.players[i].role = RoleId.CIVILIAN.value
+        state.phase = GamePhase.VOTING
+        await game_engine.state_repository.save(state)
+
+    # Civilians execute p_civs[0] (misplay)
+    await game_engine.submit_day_vote(game_id, p_civs[1], p_civs[0])
+    await game_engine.submit_day_vote(game_id, p_civs[2], p_civs[0])
+
+    state_before = await game_engine.state_repository.get(game_id)
+    assert state_before is not None
+    version_before = state_before.version
+
+    # Tick game
+    state = await game_engine.tick_game(game_id)
+
+    assert state.phase == GamePhase.NIGHT
+    assert state.version == version_before + 1
+    # Check p_civs[0] is dead
+    civ0 = next(p for p in state.players if p.user_id == p_civs[0])
+    assert civ0.is_alive is False
+    assert state.votes == {}
+
+
+@pytest.mark.asyncio
+async def test_tick_game_day_moves_to_voting(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 100 + i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.phase = GamePhase.DAY
+        await game_engine.state_repository.save(state)
+
+    state_before = await game_engine.state_repository.get(game_id)
+    assert state_before is not None
+    version_before = state_before.version
+
+    state = await game_engine.tick_game(game_id)
+
+    assert state.phase == GamePhase.VOTING
+    assert state.version == version_before + 1
+
+
+@pytest.mark.asyncio
+async def test_tick_game_finished_noop(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    state = await game_engine.create_game(game_id, uuid4(), 123)
+    state.phase = GamePhase.FINISHED
+    await game_engine.state_repository.save(state)
+
+    version_before = state.version
+
+    new_state = await game_engine.tick_game(game_id)
+    assert new_state.phase == GamePhase.FINISHED
+    assert new_state.version == version_before
+
+
+@pytest.mark.asyncio
+async def test_tick_game_lobby_noop(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    state = await game_engine.create_game(game_id, uuid4(), 123)
+    assert state.phase == GamePhase.LOBBY
+    version_before = state.version
+
+    new_state = await game_engine.tick_game(game_id)
+    assert new_state.phase == GamePhase.LOBBY
+    assert new_state.version == version_before
+
+
+@pytest.mark.asyncio
+async def test_tick_game_night_victory_stops_game(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # 1 mafia + 2 civilians -> win on 1 kill
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(2)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 100 + i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.MAFIA.value
+        state.players[1].role = RoleId.CIVILIAN.value
+        state.players[2].role = RoleId.CIVILIAN.value
+        state.phase = GamePhase.NIGHT
+        await game_engine.state_repository.save(state)
+
+    await game_engine.submit_night_action(
+        game_id, p_mafia, NightActionType.KILL, p_civs[0]
+    )
+
+    state = await game_engine.tick_game(game_id)
+
+    assert state.phase == GamePhase.FINISHED
+    assert state.winner_side == WinnerSide.MAFIA.value
+
+    # Check registry is clean
+    active_id = await game_engine.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+    assert active_id is None
+
+
+@pytest.mark.asyncio
+async def test_tick_game_voting_victory_stops_game(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # 1 mafia + 2 civilians -> win on execution
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(2)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 100 + i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.MAFIA.value
+        state.players[1].role = RoleId.CIVILIAN.value
+        state.players[2].role = RoleId.CIVILIAN.value
+        state.phase = GamePhase.VOTING
+        await game_engine.state_repository.save(state)
+
+    await game_engine.submit_day_vote(game_id, p_civs[0], p_mafia)
+    await game_engine.submit_day_vote(game_id, p_civs[1], p_mafia)
+
+    state = await game_engine.tick_game(game_id)
+
+    assert state.phase == GamePhase.FINISHED
+    assert state.winner_side == WinnerSide.CIVILIANS.value
+
+    # Check registry is clean
+    active_id = await game_engine.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+    assert active_id is None
+
+
+@pytest.mark.asyncio
 async def test_resolve_day_votes_unknown_game(game_engine: GameEngine) -> None:
     with pytest.raises(GameNotFoundError):
         await game_engine.resolve_day_votes(uuid4())

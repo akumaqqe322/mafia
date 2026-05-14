@@ -77,6 +77,52 @@ async def test_tick_advances_expired_game(
 
 
 @pytest.mark.asyncio
+async def test_tick_advances_day_to_voting(
+    phase_worker: PhaseWorker, game_engine: GameEngine
+) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+
+    # Setup game in DAY phase expired
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.phase = GamePhase.DAY
+        now = datetime.now(timezone.utc)
+        state.phase_end_at = now - timedelta(seconds=10)
+        await game_engine.state_repository.save(state)
+
+    count = await phase_worker.tick(now=now)
+    assert count == 1
+    new_state = await game_engine.state_repository.get(game_id)
+    assert new_state is not None
+    assert new_state.phase == GamePhase.VOTING
+
+
+@pytest.mark.asyncio
+async def test_tick_advances_voting_to_night(
+    phase_worker: PhaseWorker, game_engine: GameEngine
+) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+
+    # Setup game in VOTING phase expired
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.phase = GamePhase.VOTING
+        now = datetime.now(timezone.utc)
+        state.phase_end_at = now - timedelta(seconds=10)
+        await game_engine.state_repository.save(state)
+
+    count = await phase_worker.tick(now=now)
+    assert count == 1
+    new_state = await game_engine.state_repository.get(game_id)
+    assert new_state is not None
+    assert new_state.phase == GamePhase.NIGHT
+
+
+@pytest.mark.asyncio
 async def test_tick_does_not_advance_future_game(
     phase_worker: PhaseWorker, game_engine: GameEngine
 ) -> None:
