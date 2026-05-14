@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from app.core.game.events import EventVisibility, GameEvent, GameEventType
-from app.core.game.schemas import GamePhase, GameState
+from app.core.game.schemas import GameState
 
 
 def test_game_event_defaults_event_id() -> None:
