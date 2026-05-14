@@ -1,6 +1,10 @@
 from uuid import uuid4
+
 import pytest
-from app.infrastructure.repositories.phase_notification_repository import PhaseNotificationRepository
+
+from app.infrastructure.repositories.phase_notification_repository import (
+    PhaseNotificationRepository,
+)
 from tests.fakes.redis import FakeRedisClient
 
 
@@ -57,7 +61,7 @@ async def test_try_mark_notified_uses_expected_key() -> None:
     version = 5
 
     await repo.try_mark_notified(game_id, version)
-    
+
     # Check underlying fake data
     expected_key = f"game_notify:{game_id}:{version}"
     val = await redis.client.get(expected_key)

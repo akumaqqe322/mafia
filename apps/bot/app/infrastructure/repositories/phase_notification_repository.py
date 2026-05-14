@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from app.infrastructure.redis import RedisClient
 
 
@@ -34,4 +35,4 @@ class PhaseNotificationRepository:
         Best-effort cleanup for notification keys of a game.
         For MVP, we rely on TTL to clean up these keys automatically.
         """
-        pass
+        _ = game_id
