@@ -1,5 +1,11 @@
 from datetime import datetime, timezone
+from typing import cast
+from unittest.mock import MagicMock
 from uuid import uuid4
+
+import pytest
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
 
 from app.bot.callbacks import LobbyCallback, NightActionCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
@@ -10,7 +16,6 @@ from app.bot.keyboards.night_action import (
 from app.bot.presets import select_preset_for_players
 from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
-from app.bot.renderers.role import render_role_dm
 from app.bot.renderers.night_action import render_night_action_dm
 from app.bot.renderers.phase import (
     get_newly_dead_players,
@@ -19,15 +24,16 @@ from app.bot.renderers.phase import (
     render_night_started,
     render_voting_started,
 )
+from app.bot.renderers.role import render_role_dm
 from app.bot.services import (
     MAX_MAFIA_CHAT_MESSAGE_LENGTH,
+    can_manage_game,
     can_receive_mafia_chat,
     can_send_mafia_chat,
     get_mafia_chat_recipients,
-    is_mafia_chat_phase,
-    is_lobby_creator,
     is_group_admin,
-    can_manage_game,
+    is_lobby_creator,
+    is_mafia_chat_phase,
     render_mafia_chat_message,
     validate_mafia_chat_text,
 )
@@ -35,10 +41,6 @@ from app.bot.utils import build_join_url
 from app.core.game.actions import NightActionType
 from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
-from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError
-import pytest
-from unittest.mock import MagicMock
 
 
 def test_select_preset_for_supported_count() -> None:
@@ -695,22 +697,22 @@ class FakeBot:
 
 @pytest.mark.asyncio
 async def test_is_group_admin_true() -> None:
-    bot = FakeBot(status="creator")
+    bot = cast(Bot, FakeBot(status="creator"))
     assert await is_group_admin(bot, 123, 111) is True
 
-    bot = FakeBot(status="administrator")
+    bot = cast(Bot, FakeBot(status="administrator"))
     assert await is_group_admin(bot, 123, 111) is True
 
 
 @pytest.mark.asyncio
 async def test_is_group_admin_false() -> None:
-    bot = FakeBot(status="member")
+    bot = cast(Bot, FakeBot(status="member"))
     assert await is_group_admin(bot, 123, 111) is False
 
 
 @pytest.mark.asyncio
 async def test_is_group_admin_error() -> None:
-    bot = FakeBot(should_fail=True)
+    bot = cast(Bot, FakeBot(should_fail=True))
     assert await is_group_admin(bot, 123, 111) is False
 
 
@@ -724,7 +726,7 @@ async def test_can_manage_game_creator() -> None:
         phase_started_at=datetime.now(timezone.utc),
         creator_telegram_id=111,
     )
-    bot = FakeBot(status="member")  # Not admin, but creator
+    bot = cast(Bot, FakeBot(status="member"))  # Not admin, but creator
     assert await can_manage_game(bot, state, 111) is True
 
 
@@ -738,7 +740,7 @@ async def test_can_manage_game_admin() -> None:
         phase_started_at=datetime.now(timezone.utc),
         creator_telegram_id=222,
     )
-    bot = FakeBot(status="administrator")  # Admin, but not creator
+    bot = cast(Bot, FakeBot(status="administrator"))  # Admin, but not creator
     assert await can_manage_game(bot, state, 111) is True
 
 
@@ -752,5 +754,5 @@ async def test_can_manage_game_denied() -> None:
         phase_started_at=datetime.now(timezone.utc),
         creator_telegram_id=222,
     )
-    bot = FakeBot(status="member")  # Neither admin nor creator
+    bot = cast(Bot, FakeBot(status="member"))  # Neither admin nor creator
     assert await can_manage_game(bot, state, 111) is False
