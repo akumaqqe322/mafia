@@ -26,7 +26,7 @@ async def test_sequential_execution_for_same_game() -> None:
     t2 = asyncio.create_task(task("second", 0.01))
 
     await asyncio.gather(t1, t2)
-    
+
     # Because they share game_id, the order must be preserved
     assert execution_order == ["first", "second"]
 
@@ -49,7 +49,7 @@ async def test_parallel_execution_for_different_games() -> None:
     t2 = asyncio.create_task(task("short", game2, 0.01))
 
     await asyncio.gather(t1, t2)
-    
+
     # "short" task should have finished first because different game_ids don't block
     assert execution_order == ["short", "long"]
 
