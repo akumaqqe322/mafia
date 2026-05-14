@@ -11,6 +11,7 @@ from app.core.game.actions import (
     serialize_night_actions,
 )
 from app.core.game.assignment import RoleAssignmentService
+from app.core.game.day_resolver import DayVoteResolutionResult, DayVoteResolver
 from app.core.game.locks import GameLockManager
 from app.core.game.night_resolver import NightResolutionResult, NightResolver
 from app.core.game.roles import PresetRegistry, RoleId
@@ -58,6 +59,11 @@ class InvalidGamePhaseError(GameEngineException):
 
 class InvalidNightActionError(GameEngineException):
     """Night action is invalid."""
+    pass
+
+
+class InvalidVoteError(GameEngineException):
+    """Day vote is invalid."""
     pass
 
 
@@ -349,6 +355,73 @@ class GameEngine:
 
             # Clear actions for next night
             state.night_actions = {}
+            state.version += 1
+
+            await self.state_repository.save(state)
+            return result
+
+    async def submit_day_vote(
+        self,
+        game_id: UUID,
+        voter_user_id: UUID,
+        target_user_id: UUID,
+    ) -> GameState:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase != GamePhase.VOTING:
+                raise InvalidGamePhaseError(
+                    f"Cannot submit day vote in {state.phase} phase"
+                )
+
+            voter = next((p for p in state.players if p.user_id == voter_user_id), None)
+            if not voter:
+                raise PlayerNotInGameError(f"Voter {voter_user_id} not in game {game_id}")
+
+            if not voter.is_alive:
+                raise PlayerNotAliveError(f"Voter {voter_user_id} is dead")
+
+            if voter_user_id == target_user_id:
+                raise InvalidVoteError("Voter cannot vote for themselves")
+
+            target = next((p for p in state.players if p.user_id == target_user_id), None)
+            if not target:
+                raise InvalidVoteError(f"Target {target_user_id} not in game")
+
+            if not target.is_alive:
+                raise InvalidVoteError(f"Target {target_user_id} is dead")
+
+            state.votes[str(voter_user_id)] = str(target_user_id)
+            state.version += 1
+
+            await self.state_repository.save(state)
+            return state
+
+    async def resolve_day_votes(self, game_id: UUID) -> DayVoteResolutionResult:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase != GamePhase.VOTING:
+                raise InvalidGamePhaseError(
+                    f"Cannot resolve day votes in {state.phase} phase"
+                )
+
+            result = DayVoteResolver.resolve(state)
+
+            if result.executed_user_id:
+                player = next(
+                    (p for p in state.players if p.user_id == result.executed_user_id),
+                    None,
+                )
+                if player:
+                    player.is_alive = False
+
+            # Clear votes for next day
+            state.votes = {}
             state.version += 1
 
             await self.state_repository.save(state)

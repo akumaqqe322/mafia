@@ -11,6 +11,7 @@ from app.core.game.engine import (
     GameNotFoundError,
     InvalidGamePhaseError,
     InvalidNightActionError,
+    InvalidVoteError,
     NotEnoughPlayersError,
     PlayerAlreadyInGameError,
     PlayerNotAliveError,
@@ -570,3 +571,151 @@ async def test_resolve_night_invalid_phase(game_engine: GameEngine) -> None:
 
     with pytest.raises(InvalidGamePhaseError):
         await game_engine.resolve_night(game_id)
+
+
+@pytest.mark.asyncio
+async def test_submit_day_vote_success(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    p1_id = uuid4()
+    p2_id = uuid4()
+    await game_engine.join_game(game_id, p1_id, 1, "P1")
+    await game_engine.join_game(game_id, p2_id, 2, "P2")
+    for i in range(3):
+        await game_engine.join_game(game_id, uuid4(), 100 + i, f"P {i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    # Night -> Day
+    await game_engine.advance_phase(game_id)
+    # Day -> Voting
+    state = await game_engine.advance_phase(game_id)
+    assert state.phase == GamePhase.VOTING
+
+    state = await game_engine.submit_day_vote(game_id, p1_id, p2_id)
+    assert state.votes[str(p1_id)] == str(p2_id)
+    assert state.version == 11  # lobby(0) + create(1) + 5*join(6) + start(7) + 2*advance(9) + submit(10) -> wait
+    # Actually:
+    # create: version=0 originally? No, GameState() default version=0. repository.save saves it. version is incremented in engine methods.
+    # create_game: save(version=0)
+    # join_game 1: version=1
+    # join_game 2: version=2
+    # join_game 3: version=3
+    # join_game 4: version=4
+    # join_game 5: version=5
+    # start_game: version=6
+    # advance_phase: (DAY) version=7
+    # advance_phase: (VOTING) version=8
+    # submit_day_vote: version=9
+    assert state.version == 9
+
+
+@pytest.mark.asyncio
+async def test_submit_day_vote_replace(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    p1_id = uuid4()
+    p2_id = uuid4()
+    p3_id = uuid4()
+    await game_engine.join_game(game_id, p1_id, 1, "P1")
+    await game_engine.join_game(game_id, p2_id, 2, "P2")
+    await game_engine.join_game(game_id, p3_id, 3, "P3")
+    for i in range(2):
+        await game_engine.join_game(game_id, uuid4(), 100 + i, f"P {i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    await game_engine.submit_day_vote(game_id, p1_id, p2_id)
+    state = await game_engine.submit_day_vote(game_id, p1_id, p3_id)
+    assert state.votes[str(p1_id)] == str(p3_id)
+    assert len(state.votes) == 1
+
+
+@pytest.mark.asyncio
+async def test_submit_day_vote_invalid_self_vote(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    p1_id = uuid4()
+    await game_engine.join_game(game_id, p1_id, 1, "P1")
+    for i in range(4):
+        await game_engine.join_game(game_id, uuid4(), 100 + i, f"P {i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    with pytest.raises(InvalidVoteError, match="cannot vote for themselves"):
+        await game_engine.submit_day_vote(game_id, p1_id, p1_id)
+
+
+@pytest.mark.asyncio
+async def test_submit_day_vote_invalid_phase(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    p1_id = uuid4()
+    p2_id = uuid4()
+    await game_engine.join_game(game_id, p1_id, 1, "P1")
+    await game_engine.join_game(game_id, p2_id, 2, "P2")
+
+    # Still in LOBBY
+    with pytest.raises(InvalidGamePhaseError):
+        await game_engine.submit_day_vote(game_id, p1_id, p2_id)
+
+
+@pytest.mark.asyncio
+async def test_resolve_day_votes_success(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    players = []
+    for i in range(5):
+        uid = uuid4()
+        players.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    # 3 votes for p0
+    await game_engine.submit_day_vote(game_id, players[1], players[0])
+    await game_engine.submit_day_vote(game_id, players[2], players[0])
+    await game_engine.submit_day_vote(game_id, players[3], players[0])
+
+    result = await game_engine.resolve_day_votes(game_id)
+    assert result.executed_user_id == players[0]
+    assert result.is_tie is False
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    player0 = next(p for p in state.players if p.user_id == players[0])
+    assert player0.is_alive is False
+    assert state.votes == {}
+
+
+@pytest.mark.asyncio
+async def test_resolve_day_votes_tie(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    players = []
+    for i in range(5):
+        uid = uuid4()
+        players.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    # 1 vote for p0, 1 vote for p1
+    await game_engine.submit_day_vote(game_id, players[2], players[0])
+    await game_engine.submit_day_vote(game_id, players[3], players[1])
+
+    result = await game_engine.resolve_day_votes(game_id)
+    assert result.executed_user_id is None
+    assert result.is_tie is True
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert all(p.is_alive for p in state.players)
+    assert state.votes == {}

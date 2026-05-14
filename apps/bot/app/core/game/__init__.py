@@ -12,6 +12,7 @@ from app.core.game.assignment import (
     RoleAssignmentError,
     RoleAssignmentService,
 )
+from app.core.game.day_resolver import DayVoteResolutionResult, DayVoteResolver
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameEngine,
@@ -20,6 +21,7 @@ from app.core.game.engine import (
     GameNotFoundError,
     InvalidGamePhaseError,
     InvalidNightActionError,
+    InvalidVoteError,
     NotEnoughPlayersError,
     PlayerAlreadyInGameError,
     PlayerNotAliveError,
@@ -57,6 +59,7 @@ __all__ = [
     "PlayerNotInGameError",
     "InvalidGamePhaseError",
     "InvalidNightActionError",
+    "InvalidVoteError",
     "PlayerNotAliveError",
     "NotEnoughPlayersError",
     "MatchMode",
@@ -79,4 +82,6 @@ __all__ = [
     "NightCheckResult",
     "NightResolutionResult",
     "NightResolver",
+    "DayVoteResolutionResult",
+    "DayVoteResolver",
 ]
