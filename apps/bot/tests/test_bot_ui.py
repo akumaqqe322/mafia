@@ -87,6 +87,23 @@ def test_render_game_started_contains_player_count() -> None:
     assert "Игроков в игре: 7" in output
 
 
+def test_render_game_started_dm_failed_message() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.NIGHT,
+        phase_started_at=datetime.now(timezone.utc),
+        settings=GameSettings(),
+        players=[PlayerState(user_id=uuid4(), telegram_id=1, display_name="A")],
+    )
+    output = render_game_started(state, dm_failed=True)
+    assert "не удалось отправить" in output
+    # Ensure role names are not in output
+    assert "Мафия" not in output
+    assert "Мирный" not in output
+
+
 def test_render_lobby() -> None:
     state = GameState(
         game_id=uuid4(),

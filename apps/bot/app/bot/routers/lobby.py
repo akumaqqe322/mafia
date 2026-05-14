@@ -252,12 +252,10 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
                 dm_failed_players.append(player.display_name)
 
         # 4. Update group message
-        group_text = render_game_started(started_state)
-        if dm_failed_players:
-            group_text += (
-                "\n\n⚠️ Некоторым игрокам не удалось отправить роль в ЛС. "
-                "Убедитесь, что бот не заблокирован."
-            )
+        group_text = render_game_started(
+            started_state,
+            dm_failed=bool(dm_failed_players),
+        )
 
         await message.edit_text(
             text=group_text,
