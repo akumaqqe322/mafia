@@ -12,6 +12,13 @@ from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.role import render_role_dm
 from app.bot.renderers.night_action import render_night_action_dm
+from app.bot.renderers.phase import (
+    get_newly_dead_players,
+    render_day_started,
+    render_game_finished,
+    render_night_started,
+    render_voting_started,
+)
 from app.bot.utils import build_join_url
 from app.core.game.actions import NightActionType
 from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
@@ -331,3 +338,193 @@ def test_available_targets_doctor_can_heal_self() -> None:
     targets = get_available_night_targets(state, actor, NightActionType.HEAL)
     assert len(targets) == 1
     assert targets[0].user_id == alice_id
+
+
+def test_get_newly_dead_players_detects_deaths() -> None:
+    u1, u2, u3 = uuid4(), uuid4(), uuid4()
+    old_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(user_id=u1, telegram_id=1, display_name="A", is_alive=True),
+            PlayerState(user_id=u2, telegram_id=2, display_name="B", is_alive=True),
+            PlayerState(user_id=u3, telegram_id=3, display_name="C", is_alive=False),
+        ],
+    )
+    new_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=u1, telegram_id=1, display_name="A", is_alive=False
+            ),  # newly dead
+            PlayerState(user_id=u2, telegram_id=2, display_name="B", is_alive=True),
+            PlayerState(
+                user_id=u3, telegram_id=3, display_name="C", is_alive=False
+            ),  # was already dead
+        ],
+    )
+    dead = get_newly_dead_players(old_state, new_state)
+    assert len(dead) == 1
+    assert dead[0].user_id == u1
+
+
+def test_get_newly_dead_players_no_deaths() -> None:
+    u1 = uuid4()
+    old_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(user_id=u1, telegram_id=1, display_name="A", is_alive=True)
+        ],
+    )
+    new_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(user_id=u1, telegram_id=1, display_name="A", is_alive=True)
+        ],
+    )
+    assert len(get_newly_dead_players(old_state, new_state)) == 0
+
+
+def test_render_day_started_with_deaths_escapes_names() -> None:
+    u1 = uuid4()
+    old_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=u1, telegram_id=1, display_name="<Evil>", is_alive=True
+            )
+        ],
+    )
+    new_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=u1, telegram_id=1, display_name="<Evil>", is_alive=False
+            )
+        ],
+    )
+    output = render_day_started(old_state, new_state)
+    assert "☀️ Наступил день" in output
+    assert "&lt;Evil&gt;" in output
+    assert "<Evil>" not in output
+
+
+def test_render_day_started_no_deaths() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=uuid4(), telegram_id=1, display_name="A", is_alive=True
+            )
+        ],
+    )
+    output = render_day_started(state, state)
+    assert "без потерь" in output
+
+
+def test_render_day_started_does_not_reveal_roles() -> None:
+    u1 = uuid4()
+    old_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=u1,
+                telegram_id=1,
+                display_name="A",
+                is_alive=True,
+                role="mafia",
+            )
+        ],
+    )
+    new_state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=u1,
+                telegram_id=1,
+                display_name="A",
+                is_alive=False,
+                role="mafia",
+            )
+        ],
+    )
+    output = render_day_started(old_state, new_state)
+    assert "mafia" not in output
+    assert "Мафия" not in output
+
+
+def test_render_night_started_contains_phase_text() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    output = render_night_started(state)
+    assert "🌙 Наступила ночь" in output
+    assert "инструкции в личные сообщения" in output
+
+
+def test_render_voting_started_contains_phase_text() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    output = render_voting_started(state)
+    assert "⚖️ Началось голосование" in output
+
+
+def test_render_game_finished_shows_winner_side() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        winner_side="mafia",
+    )
+    output = render_game_finished(state)
+    assert "🏁 Игра окончена" in output
+    assert "mafia" in output
+
+
+def test_render_game_finished_does_not_reveal_roles() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        winner_side="mafia",
+        players=[
+            PlayerState(user_id=uuid4(), telegram_id=1, display_name="A", role="don")
+        ],
+    )
+    output = render_game_finished(state)
+    assert "don" not in output
