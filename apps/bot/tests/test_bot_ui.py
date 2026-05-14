@@ -7,13 +7,15 @@ import pytest
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 
-from app.bot.callbacks import LobbyCallback, NightActionCallback
+from app.bot.callbacks import DayVoteCallback, LobbyCallback, NightActionCallback
+from app.bot.keyboards.day_vote import build_day_vote_keyboard, get_available_day_vote_targets
 from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.keyboards.night_action import (
     build_night_action_keyboard,
     get_available_night_targets,
 )
 from app.bot.presets import select_preset_for_players
+from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.night_action import render_night_action_dm
@@ -756,3 +758,88 @@ async def test_can_manage_game_denied() -> None:
     )
     bot = cast(Bot, FakeBot(status="member"))  # Neither admin nor creator
     assert await can_manage_game(bot, state, 111) is False
+
+
+def test_day_vote_callback_pack() -> None:
+    cb = DayVoteCallback(target_telegram_id=123)
+    assert cb.pack() == "dv:123"
+
+
+def test_day_vote_callback_parse_valid() -> None:
+    cb = DayVoteCallback.parse("dv:123456")
+    assert cb is not None
+    assert cb.target_telegram_id == 123456
+
+
+def test_day_vote_callback_parse_invalid() -> None:
+    assert DayVoteCallback.parse("invalid") is None
+    assert DayVoteCallback.parse("dv:abc") is None
+    assert DayVoteCallback.parse("na:kill:123") is None
+
+
+def test_day_vote_callback_size_safe() -> None:
+    # 20 digits is max for 64-bit int
+    cb = DayVoteCallback(target_telegram_id=12345678901234567890)
+    assert len(cb.pack().encode("utf-8")) <= 64
+
+
+def test_get_available_day_vote_targets() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            make_player(None, telegram_id=1, display_name="Alice", is_alive=True),
+            make_player(None, telegram_id=2, display_name="Bob", is_alive=False),
+            make_player(None, telegram_id=3, display_name="Charlie", is_alive=True),
+        ],
+    )
+
+    # All targets (only alive)
+    targets = get_available_day_vote_targets(state)
+    assert len(targets) == 2
+    assert {t.telegram_id for t in targets} == {1, 3}
+
+    # Exclude voter
+    targets = get_available_day_vote_targets(state, voter_telegram_id=1)
+    assert len(targets) == 1
+    assert targets[0].telegram_id == 3
+
+
+def test_build_day_vote_keyboard_contains_alive_players() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            make_player(None, telegram_id=1, display_name="Alice", is_alive=True),
+            make_player(None, telegram_id=2, display_name="Bob", is_alive=False),
+        ],
+    )
+    kb = build_day_vote_keyboard(state)
+    buttons = [b for row in kb.inline_keyboard for b in row]
+    assert len(buttons) == 1
+    assert buttons[0].text == "Alice"
+    assert buttons[0].callback_data == "dv:1"
+
+
+def test_render_day_vote_started_contains_expected_text() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            make_player(None, is_alive=True),
+            make_player(None, is_alive=True),
+            make_player(None, is_alive=False),
+        ],
+    )
+    output = render_day_vote_started(state)
+    assert "Голосование началось" in output
+    assert "Живых игроков: 2" in output
+    # Ensure role is not revealed
+    assert "Мафия" not in output
+    assert "mafia" not in output

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 
 from app.core.game.actions import NightActionType
@@ -31,5 +32,25 @@ class NightActionCallback:
             action_type = NightActionType(parts[0])
             target_id = int(parts[1])
             return action_type, target_id
+        except (ValueError, TypeError):
+            return None
+
+
+@dataclass(frozen=True)
+class DayVoteCallback:
+    target_telegram_id: int
+
+    def pack(self) -> str:
+        return f"dv:{self.target_telegram_id}"
+
+    @classmethod
+    def parse(cls, data: str) -> "DayVoteCallback | None":
+        if not data.startswith("dv:"):
+            return None
+
+        payload = data.removeprefix("dv:")
+        try:
+            target_id = int(payload)
+            return cls(target_telegram_id=target_id)
         except (ValueError, TypeError):
             return None
