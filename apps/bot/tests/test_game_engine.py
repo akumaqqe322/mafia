@@ -1387,3 +1387,140 @@ async def test_tick_game_voting_persists_day_vote_event(game_engine: GameEngine)
 async def test_resolve_day_votes_unknown_game(game_engine: GameEngine) -> None:
     with pytest.raises(GameNotFoundError):
         await game_engine.resolve_day_votes(uuid4())
+
+
+@pytest.mark.asyncio
+async def test_resolve_night_adds_check_result_event(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+
+    # Add 5 players
+    uids: list[UUID] = []
+    for i in range(5):
+        uid = uuid4()
+        uids.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    # Manually assign roles and set night phase
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        # Sheriff check Mafia
+        state.players[0].role = RoleId.SHERIFF.value  # P0
+        state.players[1].role = RoleId.MAFIA.value  # P1
+        state.phase = GamePhase.NIGHT
+        await game_engine.state_repository.save(state)
+
+    # Submit check action
+    await game_engine.submit_night_action(
+        game_id, uids[0], NightActionType.CHECK, target_user_id=uids[1]
+    )
+
+    # Resolve night
+    await game_engine.resolve_night(game_id)
+
+    # Verify event
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert len(state.last_events) == 1
+    event = state.last_events[0]
+    assert event.type == GameEventType.CHECK_RESULT
+    assert event.visibility == EventVisibility.PRIVATE
+    assert event.recipient_user_id == uids[0]
+    assert event.actor_user_id == uids[0]
+    assert event.target_user_id == uids[1]
+    assert event.payload["is_mafia"] is True
+    assert event.payload["target_role"] == RoleId.MAFIA.value
+
+
+@pytest.mark.asyncio
+async def test_resolve_night_check_result_false_for_civilian(
+    game_engine: GameEngine,
+) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    uids: list[UUID] = []
+    for i in range(5):
+        uid = uuid4()
+        uids.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.SHERIFF.value
+        state.players[1].role = RoleId.CIVILIAN.value
+        state.phase = GamePhase.NIGHT
+        await game_engine.state_repository.save(state)
+
+    await game_engine.submit_night_action(
+        game_id, uids[0], NightActionType.CHECK, target_user_id=uids[1]
+    )
+
+    await game_engine.resolve_night(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert len(state.last_events) == 1
+    event = state.last_events[0]
+    assert event.payload["is_mafia"] is False
+    assert event.payload["target_role"] == RoleId.CIVILIAN.value
+
+
+@pytest.mark.asyncio
+async def test_resolve_night_without_checks_clears_last_events(
+    game_engine: GameEngine,
+) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        # Add some old event
+        from app.core.game.events import EventVisibility, GameEvent, GameEventType
+
+        state.last_events = [
+            GameEvent(type=GameEventType.DAY_VOTE_TIE, visibility=EventVisibility.PUBLIC)
+        ]
+        state.phase = GamePhase.NIGHT
+        await game_engine.state_repository.save(state)
+
+    await game_engine.resolve_night(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert state.last_events == []
+
+
+@pytest.mark.asyncio
+async def test_tick_game_night_persists_check_result_event(
+    game_engine: GameEngine,
+) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    uids: list[UUID] = []
+    for i in range(5):
+        uid = uuid4()
+        uids.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.SHERIFF.value
+        state.players[1].role = RoleId.MAFIA.value
+        state.phase = GamePhase.NIGHT
+        state.phase_end_at = datetime.now(timezone.utc)
+        await game_engine.state_repository.save(state)
+
+    await game_engine.submit_night_action(
+        game_id, uids[0], NightActionType.CHECK, target_user_id=uids[1]
+    )
+
+    # Tick game
+    state = await game_engine.tick_game(game_id)
+
+    assert any(e.type == GameEventType.CHECK_RESULT for e in state.last_events)

@@ -362,6 +362,9 @@ class GameEngine:
         """Core night resolution logic without locks or saves."""
         result = NightResolver.resolve(state)
 
+        # Build and store events
+        state.last_events = self._build_night_events(result)
+
         # Apply deaths
         for killed_id in result.killed_user_ids:
             player = next((p for p in state.players if p.user_id == killed_id), None)
@@ -438,6 +441,29 @@ class GameEngine:
 
             await self.state_repository.save(state)
             return state
+
+    def _build_night_events(
+        self,
+        result: NightResolutionResult,
+    ) -> list[GameEvent]:
+        events: list[GameEvent] = []
+
+        for check in result.checks:
+            events.append(
+                GameEvent(
+                    type=GameEventType.CHECK_RESULT,
+                    visibility=EventVisibility.PRIVATE,
+                    recipient_user_id=check.actor_user_id,
+                    actor_user_id=check.actor_user_id,
+                    target_user_id=check.target_user_id,
+                    payload={
+                        "is_mafia": check.is_mafia,
+                        "target_role": check.target_role.value,
+                    },
+                )
+            )
+
+        return events
 
     def _build_day_vote_events(
         self,
