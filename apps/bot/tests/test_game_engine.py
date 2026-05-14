@@ -46,23 +46,39 @@ async def test_create_game_success(game_engine: GameEngine) -> None:
     game_id = uuid4()
     chat_id = uuid4()
     tg_chat_id = 123
+    creator_id = 999
 
-    state = await game_engine.create_game(game_id, chat_id, tg_chat_id)
+    state = await game_engine.create_game(
+        game_id, chat_id, tg_chat_id, creator_telegram_id=creator_id
+    )
 
     assert state.game_id == game_id
     assert state.phase == GamePhase.LOBBY
     assert len(state.players) == 0
+    assert state.creator_telegram_id == creator_id
 
     # Verify persistence
     persisted = await game_engine.state_repository.get(game_id)
     assert persisted is not None
     assert persisted.game_id == game_id
+    assert persisted.creator_telegram_id == creator_id
 
     # Verify registry
     active_id = await game_engine.active_game_registry.get_active_game_by_chat(
         tg_chat_id
     )
     assert active_id == game_id
+
+
+@pytest.mark.asyncio
+async def test_create_game_creator_telegram_id_optional(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    chat_id = uuid4()
+    tg_chat_id = 123
+
+    state = await game_engine.create_game(game_id, chat_id, tg_chat_id)
+
+    assert state.creator_telegram_id is None
 
 
 @pytest.mark.asyncio

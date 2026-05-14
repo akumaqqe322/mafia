@@ -95,6 +95,7 @@ class GameEngine:
         chat_id: UUID,
         telegram_chat_id: int,
         settings: GameSettings | None = None,
+        creator_telegram_id: int | None = None,
     ) -> GameState:
         # Check if active game exists in this chat
         active_id = await self.active_game_registry.get_active_game_by_chat(
@@ -113,6 +114,7 @@ class GameEngine:
             phase=GamePhase.LOBBY,
             phase_started_at=datetime.now(timezone.utc),
             settings=resolved_settings,
+            creator_telegram_id=creator_telegram_id,
         )
 
         await self.state_repository.save(state)

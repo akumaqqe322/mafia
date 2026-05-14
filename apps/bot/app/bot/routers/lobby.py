@@ -63,6 +63,7 @@ async def cmd_game(message: types.Message, container: Container) -> None:
                 game_id=game_id,
                 chat_id=chat.id,
                 telegram_chat_id=tg_chat_id,
+                creator_telegram_id=message.from_user.id,
             )
 
             # Create invite token
