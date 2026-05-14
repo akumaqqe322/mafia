@@ -1,6 +1,5 @@
 import html
 from typing import Final
-from uuid import UUID
 
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GameState, PlayerState
