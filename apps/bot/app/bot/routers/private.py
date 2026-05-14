@@ -1,4 +1,5 @@
 import html
+
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import CommandObject, CommandStart
@@ -8,12 +9,15 @@ from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.keyboards.night_action import get_available_night_targets
 from app.bot.renderers.lobby import render_lobby
 from app.bot.utils import build_join_url
-from app.core.game.actions import NightActionType, get_allowed_night_actions
+from app.core.game.actions import get_allowed_night_actions
 from app.core.game.engine import (
     GameFullError,
     GameNotFoundError,
     InvalidGamePhaseError,
+    InvalidNightActionError,
     PlayerAlreadyInGameError,
+    PlayerNotAliveError,
+    PlayerNotInGameError,
 )
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase
@@ -199,5 +203,13 @@ async def handle_night_action(
                 # Message might be too old to edit or already has this text
                 pass
 
-    except (GameNotFoundError, InvalidGamePhaseError) as e:
-        await callback.answer(f"Ошибка: {str(e)}", show_alert=True)
+    except GameNotFoundError:
+        await callback.answer("Игра не найдена.", show_alert=True)
+    except InvalidGamePhaseError:
+        await callback.answer("Ночь уже закончилась.", show_alert=True)
+    except InvalidNightActionError:
+        await callback.answer("Недопустимое действие.", show_alert=True)
+    except PlayerNotAliveError:
+        await callback.answer("Ты уже не можешь действовать.", show_alert=True)
+    except PlayerNotInGameError:
+        await callback.answer("Ты не участвуешь в этой игре.", show_alert=True)

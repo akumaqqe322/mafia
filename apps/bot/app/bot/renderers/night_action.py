@@ -11,5 +11,5 @@ def render_night_action_dm(action_type: NightActionType) -> str:
         NightActionType.PROTECT: "🛡️ <b>Выберите, кого хотите защитить:</b>",
         NightActionType.OBSERVE: "🔭 <b>Выберите, за кем хотите последить:</b>",
     }
-    
+
     return mapping.get(action_type, "❓ <b>Выберите цель действия:</b>")

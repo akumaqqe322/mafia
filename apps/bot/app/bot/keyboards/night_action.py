@@ -1,10 +1,10 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.callbacks import NightActionCallback
-from app.core.game.schemas import GameState, PlayerState
 from app.core.game.actions import NightActionType
 from app.core.game.roles import RoleId
+from app.core.game.schemas import GameState, PlayerState
 
 
 def get_available_night_targets(
@@ -16,7 +16,7 @@ def get_available_night_targets(
     Returns a list of players that can be targeted by the given actor for the given action.
     """
     mafia_team = {RoleId.MAFIA.value, RoleId.DON.value, RoleId.LAWYER.value}
-    targets = []
+    targets: list[PlayerState] = []
 
     for target in state.players:
         if not target.is_alive:
@@ -41,7 +41,7 @@ def get_available_night_targets(
 def build_night_action_keyboard(
     state: GameState,
     actor: PlayerState,
-    action_type: NightActionType
+    action_type: NightActionType,
 ) -> InlineKeyboardMarkup:
     """
     Builds a keyboard with a list of potential targets for a night action.
@@ -55,7 +55,7 @@ def build_night_action_keyboard(
 
         builder.button(
             text=target.display_name,
-            callback_data=callback_data
+            callback_data=callback_data,
         )
 
     builder.adjust(2)

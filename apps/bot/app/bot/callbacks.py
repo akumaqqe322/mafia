@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 from app.core.game.actions import NightActionType
 
 
@@ -22,11 +21,12 @@ class NightActionCallback:
     def parse(cls, data: str) -> tuple[NightActionType, int] | None:
         if not data.startswith(cls.PREFIX):
             return None
-        
-        parts = data[len(cls.PREFIX):].split(":")
+
+        payload = data.removeprefix(cls.PREFIX)
+        parts = payload.split(":")
         if len(parts) != 2:
             return None
-            
+
         try:
             action_type = NightActionType(parts[0])
             target_id = int(parts[1])
