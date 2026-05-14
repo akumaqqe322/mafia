@@ -1,8 +1,10 @@
 from .mafia_chat import (
+    MAFIA_CHAT_ACTIVE_PHASES,
     MAX_MAFIA_CHAT_MESSAGE_LENGTH,
     can_receive_mafia_chat,
     can_send_mafia_chat,
     get_mafia_chat_recipients,
+    is_mafia_chat_phase,
     relay_mafia_chat_message,
     render_mafia_chat_message,
     validate_mafia_chat_text,
@@ -20,5 +22,7 @@ __all__ = [
     "validate_mafia_chat_text",
     "render_mafia_chat_message",
     "relay_mafia_chat_message",
+    "is_mafia_chat_phase",
     "MAX_MAFIA_CHAT_MESSAGE_LENGTH",
+    "MAFIA_CHAT_ACTIVE_PHASES",
 ]

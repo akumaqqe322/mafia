@@ -24,6 +24,7 @@ from app.bot.services import (
     can_receive_mafia_chat,
     can_send_mafia_chat,
     get_mafia_chat_recipients,
+    is_mafia_chat_phase,
     render_mafia_chat_message,
     validate_mafia_chat_text,
 )
@@ -633,3 +634,11 @@ def test_render_mafia_chat_message() -> None:
     # Ensure role is not leaked
     assert "Мафия" not in output
     assert RoleId.MAFIA.value not in output
+
+
+def test_is_mafia_chat_phase() -> None:
+    assert is_mafia_chat_phase(GamePhase.NIGHT) is True
+    assert is_mafia_chat_phase(GamePhase.DAY) is True
+    assert is_mafia_chat_phase(GamePhase.VOTING) is True
+    assert is_mafia_chat_phase(GamePhase.LOBBY) is False
+    assert is_mafia_chat_phase(GamePhase.FINISHED) is False

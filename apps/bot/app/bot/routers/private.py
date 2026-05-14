@@ -20,9 +20,11 @@ from app.core.game.engine import (
     PlayerNotInGameError,
 )
 from app.bot.services import (
+    MAFIA_CHAT_ACTIVE_PHASES,
     MAX_MAFIA_CHAT_MESSAGE_LENGTH,
     can_send_mafia_chat,
     get_mafia_chat_recipients,
+    is_mafia_chat_phase,
     relay_mafia_chat_message,
     validate_mafia_chat_text,
 )
@@ -37,7 +39,7 @@ router = Router()
 async def handle_private_text(
     message: types.Message, container: Container
 ) -> None:
-    """Relays private text messages to mafia teammates during NIGHT phase."""
+    """Relays private text messages to mafia teammates during active game phases."""
     if not message.from_user or not message.text:
         return
 
@@ -67,7 +69,7 @@ async def handle_private_text(
         await message.answer("Активная игра не найдена.")
         return
 
-    if state.phase != GamePhase.NIGHT:
+    if not is_mafia_chat_phase(state.phase):
         await message.answer("Сейчас мафиозный чат недоступен.")
         return
 

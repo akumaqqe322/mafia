@@ -5,7 +5,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 
 from app.core.game.roles import RoleId
-from app.core.game.schemas import GameState, PlayerState
+from app.core.game.schemas import GamePhase, GameState, PlayerState
 
 
 MAFIA_CHAT_ROLE_VALUES: Final[set[str]] = {
@@ -13,7 +13,18 @@ MAFIA_CHAT_ROLE_VALUES: Final[set[str]] = {
     RoleId.DON.value,
 }
 
+MAFIA_CHAT_ACTIVE_PHASES: Final[set[GamePhase]] = {
+    GamePhase.NIGHT,
+    GamePhase.DAY,
+    GamePhase.VOTING,
+}
+
 MAX_MAFIA_CHAT_MESSAGE_LENGTH: Final[int] = 1000
+
+
+def is_mafia_chat_phase(phase: GamePhase) -> bool:
+    """Returns True if the mafia chat is available during the given phase."""
+    return phase in MAFIA_CHAT_ACTIVE_PHASES
 
 
 def can_send_mafia_chat(player: PlayerState) -> bool:
