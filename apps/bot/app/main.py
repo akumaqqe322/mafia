@@ -3,7 +3,7 @@ import asyncio
 import structlog
 from aiogram import Bot, Dispatcher
 
-from app.bot.handlers import router
+from app.bot.routers import router as bot_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.infrastructure.container import Container
@@ -24,7 +24,10 @@ async def main() -> None:
 
     bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
     dp = Dispatcher()
-    dp.include_router(router)
+    dp.include_router(bot_router)
+
+    # Provide container to handlers
+    dp["container"] = container
 
     log.info("Starting bot...", environment=settings.ENVIRONMENT)
     try:
