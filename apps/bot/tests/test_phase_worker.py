@@ -6,6 +6,7 @@ import pytest
 
 from app.core.game.engine import GameEngine
 from app.core.game.locks import GameLockManager
+from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import (
@@ -81,13 +82,25 @@ async def test_tick_advances_day_to_voting(
     phase_worker: PhaseWorker, game_engine: GameEngine
 ) -> None:
     game_id = uuid4()
-    await game_engine.create_game(game_id, uuid4(), 123)
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # 1 mafia + 3 civilians
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(3)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 1000 + i, f"P {i}")
 
     # Setup game in DAY phase expired
     async with game_engine.lock_manager.lock(game_id):
         state = await game_engine.state_repository.get(game_id)
         assert state is not None
         state.phase = GamePhase.DAY
+        # Assign roles to prevent victory draw
+        state.players[0].role = RoleId.MAFIA.value
+        for i in range(1, 4):
+            state.players[i].role = RoleId.CIVILIAN.value
+
         now = datetime.now(timezone.utc)
         state.phase_end_at = now - timedelta(seconds=10)
         await game_engine.state_repository.save(state)
@@ -97,6 +110,7 @@ async def test_tick_advances_day_to_voting(
     new_state = await game_engine.state_repository.get(game_id)
     assert new_state is not None
     assert new_state.phase == GamePhase.VOTING
+    assert new_state.winner_side is None
 
 
 @pytest.mark.asyncio
@@ -104,13 +118,26 @@ async def test_tick_advances_voting_to_night(
     phase_worker: PhaseWorker, game_engine: GameEngine
 ) -> None:
     game_id = uuid4()
-    await game_engine.create_game(game_id, uuid4(), 123)
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # 1 mafia + 3 civilians
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(3)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 1000 + i, f"P {i}")
 
     # Setup game in VOTING phase expired
     async with game_engine.lock_manager.lock(game_id):
         state = await game_engine.state_repository.get(game_id)
         assert state is not None
         state.phase = GamePhase.VOTING
+        # Assign roles to prevent victory draw
+        state.players[0].role = RoleId.MAFIA.value
+        for i in range(1, 4):
+            state.players[i].role = RoleId.CIVILIAN.value
+
+        state.votes = {}  # Nobody voted -> nobody executed -> no victory
         now = datetime.now(timezone.utc)
         state.phase_end_at = now - timedelta(seconds=10)
         await game_engine.state_repository.save(state)
@@ -120,6 +147,7 @@ async def test_tick_advances_voting_to_night(
     new_state = await game_engine.state_repository.get(game_id)
     assert new_state is not None
     assert new_state.phase == GamePhase.NIGHT
+    assert new_state.winner_side is None
 
 
 @pytest.mark.asyncio
