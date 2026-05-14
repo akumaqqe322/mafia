@@ -168,7 +168,7 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
 
     # Cleanup invite
     await container.game_invite_repository.delete_by_game_id(active_game_id)
-    
+
     await container.game_engine.cancel_game(active_game_id)
     await message.edit_text("🚫 Game canceled.")
     await callback.answer("Game canceled.")
@@ -215,6 +215,11 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
         )
         return
 
+    bot = callback.bot
+    if bot is None:
+        await callback.answer("Bot instance unavailable.", show_alert=True)
+        return
+
     try:
         # 1. Start game in engine
         started_state = await container.game_engine.start_game(
@@ -233,7 +238,12 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
 
             try:
                 role_id = RoleId(player.role)
-                await callback.bot.send_message(
+            except ValueError:
+                dm_failed_players.append(player.display_name)
+                continue
+
+            try:
+                await bot.send_message(
                     chat_id=player.telegram_id,
                     text=render_role_dm(role_id),
                     parse_mode="HTML",
@@ -262,7 +272,3 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
         await callback.answer("Игра уже началась!", show_alert=True)
     except GameNotFoundError:
         await callback.answer("Игра не найдена.", show_alert=True)
-    except Exception as e:
-        # Log unexpected errors
-        print(f"Error starting game: {e}")
-        await callback.answer("Произошла ошибка при запуске игры.", show_alert=True)

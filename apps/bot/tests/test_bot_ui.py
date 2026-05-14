@@ -8,7 +8,7 @@ from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.role import render_role_dm
 from app.bot.utils import build_join_url
-from app.core.game.roles import RoleId
+from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
 
 
@@ -27,11 +27,20 @@ def test_select_preset_returns_none_for_too_few_players() -> None:
     assert select_preset_for_players(4) is None
 
 
+def test_select_preset_returns_existing_preset() -> None:
+    result = select_preset_for_players(5)
+    assert result is not None
+    preset = PresetRegistry.get_by_id(result)
+    assert preset.min_players <= 5 <= preset.max_players
+
+
 def test_render_role_dm_contains_role_metadata() -> None:
-    output = render_role_dm(RoleId.MAFIA)
-    assert "Мафия" in output
-    assert "🕵️‍♂️" in output
-    assert "Член преступной группировки" in output
+    role_id = RoleId.MAFIA
+    metadata = RoleRegistry.get(role_id)
+    output = render_role_dm(role_id)
+    assert metadata.name in output
+    assert metadata.emoji in output
+    assert metadata.description in output
 
 
 def test_render_role_dm_contains_night_instruction() -> None:
