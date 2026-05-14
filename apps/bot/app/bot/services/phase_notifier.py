@@ -4,6 +4,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.keyboards.day_vote import build_day_vote_keyboard
 from app.bot.renderers.day_vote import render_day_vote_started
+from app.bot.renderers.day_vote_result import render_day_vote_result
 from app.bot.renderers.phase import (
     render_day_started,
     render_game_finished,
@@ -53,6 +54,9 @@ class TelegramGameNotifier:
                 await self._clear_player_game_mappings(new_state)
             return
 
+        # Send day vote result summary if we just left VOTING phase
+        await self._send_day_vote_result_if_needed(old_state, new_state)
+
         phase = new_state.phase
 
         if phase == GamePhase.NIGHT:
@@ -91,6 +95,25 @@ class TelegramGameNotifier:
             # We don't catch exceptions here because clear_active_game (Redis)
             # is expected to be stable. Error in one player won't block others.
             await self.player_game_repository.clear_active_game(player.telegram_id)
+
+    async def _send_day_vote_result_if_needed(
+        self,
+        old_state: GameState | None,
+        new_state: GameState,
+    ) -> None:
+        """
+        Sends day vote result summary if the phase just transitioned from VOTING.
+        """
+        if old_state is None:
+            return
+        if old_state.phase != GamePhase.VOTING:
+            return
+        if new_state.phase == GamePhase.VOTING:
+            return
+
+        text = render_day_vote_result(new_state)
+        if text:
+            await self._send_group_message(new_state, text)
 
     async def _send_group_message(
         self,
