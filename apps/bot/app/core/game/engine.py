@@ -200,7 +200,10 @@ class GameEngine:
             if not state:
                 raise GameNotFoundError(f"Game {game_id} not found")
 
-            if state.phase in (GamePhase.LOBBY, GamePhase.FINISHED):
+            if state.phase == GamePhase.FINISHED:
+                return state
+
+            if state.phase == GamePhase.LOBBY:
                 raise InvalidGamePhaseError(f"Cannot advance from {state.phase} phase")
 
             now = datetime.now(timezone.utc)
@@ -335,6 +338,17 @@ class GameEngine:
             await self.state_repository.save(state)
             return state
 
+    def _apply_victory_to_state(
+        self,
+        state: GameState,
+        winner_side: WinnerSide,
+    ) -> None:
+        """Transitions state to FINISHED."""
+        state.phase = GamePhase.FINISHED
+        state.phase_end_at = None
+        state.winner_side = winner_side.value
+        state.version += 1
+
     async def resolve_night(self, game_id: UUID) -> NightResolutionResult:
         async with self.lock_manager.lock(game_id):
             state = await self.state_repository.get(game_id)
@@ -361,11 +375,13 @@ class GameEngine:
             # Check victory
             victory_result = VictoryConditionService.check(state)
             if victory_result.winner_side != WinnerSide.NONE:
-                state.phase = GamePhase.FINISHED
-                state.phase_end_at = None
-                state.winner_side = victory_result.winner_side.value
-
-            await self.state_repository.save(state)
+                self._apply_victory_to_state(state, victory_result.winner_side)
+                await self.state_repository.save(state)
+                await self.active_game_registry.remove_active_game(
+                    game_id, state.telegram_chat_id
+                )
+            else:
+                await self.state_repository.save(state)
             return result
 
     async def submit_day_vote(
@@ -435,9 +451,11 @@ class GameEngine:
             # Check victory
             victory_result = VictoryConditionService.check(state)
             if victory_result.winner_side != WinnerSide.NONE:
-                state.phase = GamePhase.FINISHED
-                state.phase_end_at = None
-                state.winner_side = victory_result.winner_side.value
-
-            await self.state_repository.save(state)
+                self._apply_victory_to_state(state, victory_result.winner_side)
+                await self.state_repository.save(state)
+                await self.active_game_registry.remove_active_game(
+                    game_id, state.telegram_chat_id
+                )
+            else:
+                await self.state_repository.save(state)
             return result
