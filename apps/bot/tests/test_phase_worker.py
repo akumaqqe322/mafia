@@ -7,13 +7,23 @@ import pytest
 from app.core.game.engine import GameEngine
 from app.core.game.locks import GameLockManager
 from app.core.game.roles import RoleId
-from app.core.game.schemas import GamePhase
+from app.core.game.schemas import GamePhase, GameState, PlayerState
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import (
     RedisGameStateRepository,
 )
-from app.workers.phase_worker import PhaseWorker
+from app.workers.phase_worker import PhaseWorker, _should_notify_phase_change
 from tests.fakes.redis import FakeRedisClient
+
+
+class FakeNotifier:
+    def __init__(self) -> None:
+        self.calls: list[tuple[GameState | None, GameState]] = []
+
+    async def notify_phase_change(
+        self, old_state: GameState | None, new_state: GameState
+    ) -> None:
+        self.calls.append((old_state, new_state))
 
 
 @pytest.fixture
@@ -211,3 +221,105 @@ async def test_phase_worker_start_stop(phase_worker: PhaseWorker) -> None:
 
     await asyncio.wait_for(task, timeout=1.0)
     assert not phase_worker.is_running
+
+
+@pytest.mark.asyncio
+async def test_phase_worker_notifies_on_phase_change(
+    game_engine: GameEngine,
+    repositories: tuple[RedisGameStateRepository, ActiveGameRegistry],
+) -> None:
+    state_repo, registry = repositories
+    notifier = FakeNotifier()
+    worker = PhaseWorker(game_engine, state_repo, registry, notifier=notifier)
+
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+    await game_engine.start_game(game_id, "classic_5_6")
+
+    # Expire game in NIGHT phase
+    state = await state_repo.get(game_id)
+    assert state is not None
+    now = datetime.now(timezone.utc)
+    state.phase_end_at = now - timedelta(seconds=1)
+    await state_repo.save(state)
+
+    await worker.tick(now=now)
+
+    assert len(notifier.calls) == 1
+    old_st, new_st = notifier.calls[0]
+    assert old_st.phase == GamePhase.NIGHT
+    assert new_st.phase == GamePhase.DAY
+
+
+@pytest.mark.asyncio
+async def test_phase_worker_does_not_notify_when_no_phase_change(
+    game_engine: GameEngine,
+    repositories: tuple[RedisGameStateRepository, ActiveGameRegistry],
+) -> None:
+    state_repo, registry = repositories
+    notifier = FakeNotifier()
+    worker = PhaseWorker(game_engine, state_repo, registry, notifier=notifier)
+
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    # LOBBY - no expiry, no tick
+    await worker.tick()
+
+    assert len(notifier.calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_phase_worker_notifier_error_does_not_crash_worker(
+    game_engine: GameEngine,
+    repositories: tuple[RedisGameStateRepository, ActiveGameRegistry],
+) -> None:
+    state_repo, registry = repositories
+
+    class ErrorNotifier:
+        async def notify_phase_change(self, old, new) -> None:
+            raise RuntimeError("Notification failed")
+
+    worker = PhaseWorker(game_engine, state_repo, registry, notifier=ErrorNotifier())
+
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+    await game_engine.start_game(game_id, "classic_5_6")
+
+    state = await state_repo.get(game_id)
+    assert state is not None
+    now = datetime.now(timezone.utc)
+    state.phase_end_at = now - timedelta(seconds=1)
+    await state_repo.save(state)
+
+    # Should not raise
+    count = await worker.tick(now=now)
+    assert count == 1
+
+
+def test_should_notify_phase_change_logic() -> None:
+    u = uuid4()
+    p = [PlayerState(user_id=uuid4(), telegram_id=1, display_name="A")]
+    s_night = GameState(
+        game_id=u,
+        chat_id=u,
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        players=p,
+        phase_started_at=datetime.now(),
+    )
+    s_day = GameState(
+        game_id=u,
+        chat_id=u,
+        telegram_chat_id=1,
+        phase=GamePhase.DAY,
+        players=p,
+        phase_started_at=datetime.now(),
+    )
+
+    assert _should_notify_phase_change(None, s_night) is True
+    assert _should_notify_phase_change(s_night, s_day) is True
+    assert _should_notify_phase_change(s_night, s_night) is False

@@ -3,8 +3,10 @@ import logging
 from datetime import datetime, timezone
 
 from app.core.game.engine import GameEngine, GameEngineException
+from app.core.game.schemas import GamePhase, GameState
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
+from app.workers.protocols import GameNotifier
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +18,13 @@ class PhaseWorker:
         state_repository: RedisGameStateRepository,
         active_game_registry: ActiveGameRegistry,
         poll_interval_sec: float = 1.0,
+        notifier: GameNotifier | None = None,
     ) -> None:
         self.game_engine = game_engine
         self.state_repository = state_repository
         self.active_game_registry = active_game_registry
         self.poll_interval_sec = poll_interval_sec
+        self.notifier = notifier
         self._is_running = False
 
     @property
@@ -52,8 +56,21 @@ class PhaseWorker:
                         game_id,
                         state.phase_end_at,
                     )
-                    await self.game_engine.tick_game(game_id)
+                    old_state = state
+                    new_state = await self.game_engine.tick_game(game_id)
                     advanced_count += 1
+
+                    if self.notifier:
+                        if _should_notify_phase_change(old_state, new_state):
+                            try:
+                                await self.notifier.notify_phase_change(
+                                    old_state, new_state
+                                )
+                            except Exception:
+                                logger.exception(
+                                    "Error notifying phase change for game %s",
+                                    game_id,
+                                )
             except GameEngineException as e:
                 logger.error("Error advancing game %s: %s", game_id, e)
             except Exception as e:
@@ -80,3 +97,16 @@ class PhaseWorker:
         """Stops the main worker loop."""
         self._is_running = False
         logger.info("PhaseWorker stopped")
+
+
+def _should_notify_phase_change(
+    old_state: GameState | None,
+    new_state: GameState,
+) -> bool:
+    """
+    Returns True if we should notify about a phase change or significant event.
+    """
+    if old_state is None:
+        return True
+
+    return old_state.phase != new_state.phase
