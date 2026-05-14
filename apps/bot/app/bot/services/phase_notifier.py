@@ -1,0 +1,81 @@
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
+
+from app.bot.renderers.phase import (
+    render_day_started,
+    render_game_finished,
+    render_night_started,
+    render_voting_started,
+)
+from app.bot.services.night_actions import send_night_action_menus
+from app.core.game.schemas import GamePhase, GameState
+from app.infrastructure.repositories.player_game_repository import PlayerGameRepository
+
+
+class TelegramGameNotifier:
+    """
+    Handles Telegram notifications for game phase changes.
+    """
+
+    def __init__(
+        self,
+        bot: Bot,
+        player_game_repository: PlayerGameRepository,
+    ) -> None:
+        self.bot = bot
+        self.player_game_repository = player_game_repository
+
+    async def notify_phase_change(
+        self,
+        old_state: GameState | None,
+        new_state: GameState,
+    ) -> None:
+        """
+        Sends notifications to group chat (and players if needed) based on phase transition.
+        Does not raise Telegram exceptions to prevent worker crashes.
+        """
+        phase = new_state.phase
+
+        if phase == GamePhase.NIGHT:
+            # 1. Send action menus to active players
+            failed_ids = await send_night_action_menus(self.bot, new_state)
+            dm_failed = bool(failed_ids)
+
+            # 2. Notify group
+            text = render_night_started(new_state, dm_failed=dm_failed)
+            await self._send_group_message(new_state, text)
+
+        elif phase == GamePhase.DAY:
+            text = render_day_started(old_state, new_state)
+            await self._send_group_message(new_state, text)
+
+        elif phase == GamePhase.VOTING:
+            text = render_voting_started(new_state)
+            await self._send_group_message(new_state, text)
+
+        elif phase == GamePhase.FINISHED:
+            # 1. Notify group
+            text = render_game_finished(new_state)
+            await self._send_group_message(new_state, text)
+
+            # 2. Cleanup player mappings
+            for player in new_state.players:
+                # We don't catch exceptions here because clear_active_game (Redis)
+                # is expected to be stable. Error in one player won't block others
+                # if we were to wrap it, but for MVP simple loop is enough.
+                await self.player_game_repository.clear_active_game(player.telegram_id)
+
+    async def _send_group_message(self, state: GameState, text: str) -> None:
+        """
+        Sends a message to the game's Telegram group chat.
+        Handles possible Telegram errors silently.
+        """
+        try:
+            await self.bot.send_message(
+                chat_id=state.telegram_chat_id,
+                text=text,
+                parse_mode="HTML",
+            )
+        except (TelegramForbiddenError, TelegramAPIError):
+            # Log could be added later if needed
+            return
