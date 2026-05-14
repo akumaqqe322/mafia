@@ -13,6 +13,7 @@ from app.core.game.assignment import (
     RoleAssignmentService,
 )
 from app.core.game.day_resolver import DayVoteResolutionResult, DayVoteResolver
+from app.core.game.events import EventVisibility, GameEvent, GameEventType
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameEngine,
@@ -54,6 +55,9 @@ __all__ = [
     "PlayerState",
     "GameSettings",
     "GameState",
+    "GameEvent",
+    "GameEventType",
+    "EventVisibility",
     "GameLockManager",
     "GameEngine",
     "GameEngineException",
