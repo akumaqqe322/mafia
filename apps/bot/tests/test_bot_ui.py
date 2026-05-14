@@ -16,6 +16,7 @@ from app.bot.keyboards.night_action import (
 )
 from app.bot.presets import select_preset_for_players
 from app.bot.renderers.day_vote import render_day_vote_started
+from app.bot.renderers.day_vote_result import render_day_vote_result
 from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.night_action import render_night_action_dm
@@ -41,6 +42,7 @@ from app.bot.services import (
 )
 from app.bot.utils import build_join_url
 from app.core.game.actions import NightActionType
+from app.core.game.events import EventVisibility, GameEvent, GameEventType
 from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
 
@@ -843,3 +845,124 @@ def test_render_day_vote_started_contains_expected_text() -> None:
     # Ensure role is not revealed
     assert "Мафия" not in output
     assert "mafia" not in output
+
+
+def test_render_day_vote_result_executed() -> None:
+    target_id = uuid4()
+    p_target = make_player(role=RoleId.MAFIA.value, display_name="Alice", telegram_id=100)
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.DAY_PLAYER_EXECUTED,
+        visibility=EventVisibility.PUBLIC,
+        target_user_id=target_id,
+        payload={"votes_count": 3},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+        last_events=[event],
+    )
+
+    text = render_day_vote_result(state)
+    assert text is not None
+    assert "Голосование завершено" in text
+    assert "Alice" in text
+    assert "покидает игру" in text
+    assert "Голосов: 3" in text
+    # Safety: do not reveal role
+    assert "Мафия" not in text
+    assert RoleId.MAFIA.value not in text
+
+
+def test_render_day_vote_result_tie() -> None:
+    u1, u2 = uuid4(), uuid4()
+    p1 = make_player(None, display_name="Alice")
+    p1.user_id = u1
+    p2 = make_player(None, display_name="Bob")
+    p2.user_id = u2
+
+    event = GameEvent(
+        type=GameEventType.DAY_VOTE_TIE,
+        visibility=EventVisibility.PUBLIC,
+        related_user_ids=[u1, u2],
+        payload={"votes_count": 2},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p1, p2],
+        last_events=[event],
+    )
+
+    text = render_day_vote_result(state)
+    assert text is not None
+    assert "Голоса разделились между" in text
+    assert "Alice" in text
+    assert "Bob" in text
+    assert "никто не покинул город" in text
+    assert "Голосов у лидеров: 2" in text
+
+
+def test_render_day_vote_result_no_votes() -> None:
+    event = GameEvent(
+        type=GameEventType.DAY_VOTE_NO_VOTES,
+        visibility=EventVisibility.PUBLIC,
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        last_events=[event],
+    )
+
+    text = render_day_vote_result(state)
+    assert text is not None
+    assert "так и не пришёл к решению" in text
+    assert "никто не покинул город" in text
+
+
+def test_render_day_vote_result_returns_none_without_vote_event() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        last_events=[],
+    )
+    assert render_day_vote_result(state) is None
+
+
+def test_render_day_vote_result_escapes_player_names() -> None:
+    target_id = uuid4()
+    p_target = make_player(None, display_name="<script>Alice</script>")
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.DAY_PLAYER_EXECUTED,
+        visibility=EventVisibility.PUBLIC,
+        target_user_id=target_id,
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+        last_events=[event],
+    )
+
+    text = render_day_vote_result(state)
+    assert text is not None
+    assert "&lt;script&gt;Alice&lt;/script&gt;" in text
+    assert "<script>" not in text
