@@ -1,5 +1,7 @@
 from uuid import UUID
+
 from pydantic import BaseModel, Field
+
 from app.core.game.actions import NightActionType, deserialize_night_actions
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GameState
