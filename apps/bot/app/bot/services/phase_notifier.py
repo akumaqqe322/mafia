@@ -1,11 +1,13 @@
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
+from aiogram.types import InlineKeyboardMarkup
 
+from app.bot.keyboards.day_vote import build_day_vote_keyboard
+from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.phase import (
     render_day_started,
     render_game_finished,
     render_night_started,
-    render_voting_started,
 )
 from app.bot.services.night_actions import send_night_action_menus
 from app.core.game.schemas import GamePhase, GameState
@@ -67,8 +69,13 @@ class TelegramGameNotifier:
             await self._send_group_message(new_state, text)
 
         elif phase == GamePhase.VOTING:
-            text = render_voting_started(new_state)
-            await self._send_group_message(new_state, text)
+            text = render_day_vote_started(new_state)
+            keyboard = build_day_vote_keyboard(new_state)
+            await self._send_group_message(
+                new_state,
+                text,
+                reply_markup=keyboard,
+            )
 
         elif phase == GamePhase.FINISHED:
             # 1. Notify group
@@ -85,7 +92,12 @@ class TelegramGameNotifier:
             # is expected to be stable. Error in one player won't block others.
             await self.player_game_repository.clear_active_game(player.telegram_id)
 
-    async def _send_group_message(self, state: GameState, text: str) -> None:
+    async def _send_group_message(
+        self,
+        state: GameState,
+        text: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
+    ) -> None:
         """
         Sends a message to the game's Telegram group chat.
         Handles possible Telegram errors silently.
@@ -95,6 +107,7 @@ class TelegramGameNotifier:
                 chat_id=state.telegram_chat_id,
                 text=text,
                 parse_mode="HTML",
+                reply_markup=reply_markup,
             )
         except (TelegramForbiddenError, TelegramAPIError):
             # Log could be added later if needed
