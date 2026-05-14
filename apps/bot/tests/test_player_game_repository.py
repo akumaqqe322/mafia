@@ -1,5 +1,6 @@
-import pytest
 from uuid import uuid4
+
+import pytest
 
 from app.infrastructure.repositories.player_game_repository import PlayerGameRepository
 from tests.fakes.redis import FakeRedisClient
@@ -17,7 +18,7 @@ async def test_player_game_repository_roundtrip() -> None:
 
     # Set
     await repo.set_active_game(telegram_id, game_id)
-    
+
     # Get
     result = await repo.get_active_game(telegram_id)
     assert result == game_id
@@ -56,7 +57,7 @@ async def test_player_game_repository_invalid_uuid() -> None:
     telegram_id = 12345
 
     # Insert garbage into redis directly
-    key = repo._get_key(telegram_id)
+    key = f"player_game:{telegram_id}"
     await redis.client.set(key, "not-a-uuid")
 
     assert await repo.get_active_game(telegram_id) is None
@@ -70,7 +71,7 @@ async def test_player_game_repository_bytes_decoding() -> None:
     game_id = uuid4()
 
     # Insert bytes into redis directly
-    key = repo._get_key(telegram_id)
+    key = f"player_game:{telegram_id}"
     await redis.client.set(key, str(game_id).encode("utf-8"))
 
     result = await repo.get_active_game(telegram_id)
