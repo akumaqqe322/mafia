@@ -33,7 +33,8 @@ def test_render_lobby() -> None:
     output = render_lobby(state)
     assert "Alice" in output
     assert "Bob" in output
-    assert "2/10" in output
+    assert "2/12" in output
+    assert "Mode: <i>Auto</i>" in output
     assert "🎭 Mafia Lobby" in output
     # Ensure role is not leaked
     assert "MAFIA" not in output
@@ -52,7 +53,7 @@ def test_render_lobby_empty_state() -> None:
     )
     output = render_lobby(state)
     assert "Пока никто не присоединился" in output
-    assert "0/10" in output
+    assert "0/12" in output
 
 
 def test_render_lobby_escapes_html() -> None:

@@ -9,10 +9,8 @@ from app.bot.renderers.lobby import render_lobby
 from app.bot.utils import build_join_url
 from app.core.game.engine import (
     GameAlreadyExistsError,
-    GameFullError,
     GameNotFoundError,
     InvalidGamePhaseError,
-    PlayerAlreadyInGameError,
     PlayerNotInGameError,
 )
 from app.infrastructure.container import Container
@@ -79,7 +77,7 @@ async def cmd_game(message: types.Message, container: Container) -> None:
 
 
 @router.callback_query(F.data == LobbyCallback.JOIN.value)
-async def handle_join(callback: types.CallbackQuery, container: Container) -> None:
+async def handle_join(callback: types.CallbackQuery) -> None:
     """Inform user they must join via private message deep-link."""
     await callback.answer(
         "Нажми кнопку Join со ссылкой, чтобы открыть ЛС с ботом и войти в игру.",

@@ -76,26 +76,28 @@ async def cmd_start(
         )
 
         await message.answer(
-            f"✅ You joined the game in <b>{state.settings.preset_id}</b>!"
+            "✅ You joined the game!"
         )
 
         # Update lobby message in group if exists
         if state.lobby_message_id and state.phase == GamePhase.LOBBY:
-            bot_info = await message.bot.get_me() if message.bot else None
-            bot_username = bot_info.username if bot_info else "mafia_bot"
-            invite_url = build_join_url(bot_username, token)
+            bot = message.bot
+            if bot:
+                bot_info = await bot.get_me()
+                bot_username = bot_info.username
+                invite_url = build_join_url(bot_username, token)
 
-            try:
-                await message.bot.edit_message_text(
-                    chat_id=state.telegram_chat_id,
-                    message_id=state.lobby_message_id,
-                    text=render_lobby(state),
-                    reply_markup=build_lobby_keyboard(invite_url),
-                    parse_mode="HTML",
-                )
-            except TelegramAPIError:
-                # Group message might have been deleted or edited by someone else
-                pass
+                try:
+                    await bot.edit_message_text(
+                        chat_id=state.telegram_chat_id,
+                        message_id=state.lobby_message_id,
+                        text=render_lobby(state),
+                        reply_markup=build_lobby_keyboard(invite_url),
+                        parse_mode="HTML",
+                    )
+                except TelegramAPIError:
+                    # Group message might have been deleted or edited by someone else
+                    pass
 
     except PlayerAlreadyInGameError:
         await message.answer("You are already in this game!")

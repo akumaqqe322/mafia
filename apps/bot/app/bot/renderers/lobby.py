@@ -18,7 +18,8 @@ def render_lobby(state: GameState) -> str:
     else:
         players_list = "\n\n<i>Пока никто не присоединился</i>"
 
-    mode_name = state.settings.preset_id or "Auto"
+    # TODO: Get preset name from settings or state when implemented
+    mode_name = "Auto"
 
     text = (
         f"<b>🎭 Mafia Lobby</b>\n"
