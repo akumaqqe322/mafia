@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings
 from app.core.game.engine import GameEngine
 from app.core.game.locks import GameLockManager
-from app.core.config import Settings
 from app.infrastructure.database import Database
 from app.infrastructure.redis import RedisClient
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry

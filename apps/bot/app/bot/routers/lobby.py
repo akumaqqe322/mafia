@@ -19,6 +19,15 @@ from app.infrastructure.container import Container
 router = Router()
 
 
+def _get_callback_message(
+    callback: types.CallbackQuery,
+) -> types.Message | None:
+    """Safely extracts message from callback query."""
+    if isinstance(callback.message, types.Message):
+        return callback.message
+    return None
+
+
 @router.message(Command("game"))
 async def cmd_game(message: types.Message, container: Container) -> None:
     """Handles /game command to create a lobby."""
@@ -77,12 +86,19 @@ async def cmd_game(message: types.Message, container: Container) -> None:
             await message.answer("An active game already exists in this chat!")
 
 
-@router.callback_query(F.data == LobbyCallback.JOIN)
+@router.callback_query(F.data == LobbyCallback.JOIN.value)
 async def handle_join(callback: types.CallbackQuery, container: Container) -> None:
-    if not callback.message or not callback.from_user:
+    message = _get_callback_message(callback)
+    if message is None or not callback.from_user:
+        if not callback.from_user:
+            return
+        await callback.answer(
+            "This lobby message is no longer available.",
+            show_alert=True,
+        )
         return
 
-    tg_chat_id = callback.message.chat.id
+    tg_chat_id = message.chat.id
     active_game_id = await container.active_game_registry.get_active_game_by_chat(
         tg_chat_id
     )
@@ -113,7 +129,7 @@ async def handle_join(callback: types.CallbackQuery, container: Container) -> No
             telegram_id=user.telegram_id,
             display_name=display_name,
         )
-        await callback.message.edit_text(
+        await message.edit_text(
             render_lobby(state),
             reply_markup=build_lobby_keyboard(),
             parse_mode="HTML",
@@ -127,12 +143,19 @@ async def handle_join(callback: types.CallbackQuery, container: Container) -> No
         await callback.answer("Game not found.", show_alert=True)
 
 
-@router.callback_query(F.data == LobbyCallback.LEAVE)
+@router.callback_query(F.data == LobbyCallback.LEAVE.value)
 async def handle_leave(callback: types.CallbackQuery, container: Container) -> None:
-    if not callback.message or not callback.from_user:
+    message = _get_callback_message(callback)
+    if message is None or not callback.from_user:
+        if not callback.from_user:
+            return
+        await callback.answer(
+            "This lobby message is no longer available.",
+            show_alert=True,
+        )
         return
 
-    tg_chat_id = callback.message.chat.id
+    tg_chat_id = message.chat.id
     active_game_id = await container.active_game_registry.get_active_game_by_chat(
         tg_chat_id
     )
@@ -153,7 +176,7 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
             game_id=active_game_id,
             user_id=user.id,
         )
-        await callback.message.edit_text(
+        await message.edit_text(
             render_lobby(state),
             reply_markup=build_lobby_keyboard(),
             parse_mode="HTML",
@@ -167,13 +190,18 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
         await callback.answer("Game not found.", show_alert=True)
 
 
-@router.callback_query(F.data == LobbyCallback.CANCEL)
+@router.callback_query(F.data == LobbyCallback.CANCEL.value)
 async def handle_cancel(callback: types.CallbackQuery, container: Container) -> None:
-    if not callback.message:
+    message = _get_callback_message(callback)
+    if message is None:
+        await callback.answer(
+            "This lobby message is no longer available.",
+            show_alert=True,
+        )
         return
 
     # TODO: restrict to creator or admin
-    tg_chat_id = callback.message.chat.id
+    tg_chat_id = message.chat.id
     active_game_id = await container.active_game_registry.get_active_game_by_chat(
         tg_chat_id
     )
@@ -183,10 +211,10 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
         return
 
     await container.game_engine.cancel_game(active_game_id)
-    await callback.message.edit_text("🚫 Game canceled.")
+    await message.edit_text("🚫 Game canceled.")
     await callback.answer("Game canceled.")
 
 
-@router.callback_query(F.data == LobbyCallback.START)
+@router.callback_query(F.data == LobbyCallback.START.value)
 async def handle_start(callback: types.CallbackQuery) -> None:
     await callback.answer("Start will be added in the next stage! 🚀", show_alert=True)
