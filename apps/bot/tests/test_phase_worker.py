@@ -87,7 +87,6 @@ async def test_tick_does_not_advance_future_game(
 
     await game_engine.start_game(game_id, "classic_5_6")
 
-
     # phase_end_at is in the future by default
     now = datetime.now(timezone.utc)
 

@@ -1,4 +1,4 @@
-from app.core.game.roles import MatchMode, RoleId, RolePreset, RoleRegistry
+from app.core.game.roles import RoleId, RolePreset, RoleRegistry
 
 
 class RoleAssignmentError(Exception):
@@ -30,9 +30,7 @@ class RoleAssignmentService:
                 f"but {players_count} were provided."
             )
 
-        # 2. (Deprecated reward_eligible block removed)
-
-        # 3. Calculate used slots
+        # 2. Calculate used slots
         deck: list[RoleId] = []
         for role_id, count in preset.role_counts.items():
             # Validate role count
