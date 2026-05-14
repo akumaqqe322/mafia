@@ -19,6 +19,14 @@ from app.bot.renderers.phase import (
     render_night_started,
     render_voting_started,
 )
+from app.bot.services import (
+    MAX_MAFIA_CHAT_MESSAGE_LENGTH,
+    can_receive_mafia_chat,
+    can_send_mafia_chat,
+    get_mafia_chat_recipients,
+    render_mafia_chat_message,
+    validate_mafia_chat_text,
+)
 from app.bot.utils import build_join_url
 from app.core.game.actions import NightActionType
 from app.core.game.roles import PresetRegistry, RoleId, RoleRegistry
@@ -528,3 +536,100 @@ def test_render_game_finished_does_not_reveal_roles() -> None:
     )
     output = render_game_finished(state)
     assert "don" not in output
+
+
+def make_player(
+    role: str | None,
+    is_alive: bool = True,
+    telegram_id: int = 1,
+    display_name: str = "Player",
+) -> PlayerState:
+    return PlayerState(
+        user_id=uuid4(),
+        telegram_id=telegram_id,
+        display_name=display_name,
+        role=role,
+        is_alive=is_alive,
+    )
+
+
+def test_can_send_mafia_chat() -> None:
+    assert can_send_mafia_chat(make_player(RoleId.MAFIA.value, is_alive=True)) is True
+    assert can_send_mafia_chat(make_player(RoleId.DON.value, is_alive=True)) is True
+    assert can_send_mafia_chat(make_player(RoleId.MAFIA.value, is_alive=False)) is False
+    assert can_send_mafia_chat(make_player(RoleId.DON.value, is_alive=False)) is False
+    assert can_send_mafia_chat(make_player(RoleId.LAWYER.value, is_alive=True)) is False
+    assert can_send_mafia_chat(make_player(RoleId.CIVILIAN.value, is_alive=True)) is False
+    assert can_send_mafia_chat(make_player(None, is_alive=True)) is False
+    assert can_send_mafia_chat(make_player("unknown", is_alive=True)) is False
+
+
+def test_can_receive_mafia_chat() -> None:
+    assert (
+        can_receive_mafia_chat(make_player(RoleId.MAFIA.value, is_alive=True)) is True
+    )
+    assert (
+        can_receive_mafia_chat(make_player(RoleId.MAFIA.value, is_alive=False)) is True
+    )
+    assert can_receive_mafia_chat(make_player(RoleId.DON.value, is_alive=True)) is True
+    assert (
+        can_receive_mafia_chat(make_player(RoleId.DON.value, is_alive=False)) is True
+    )
+    assert (
+        can_receive_mafia_chat(make_player(RoleId.LAWYER.value, is_alive=True)) is False
+    )
+    assert (
+        can_receive_mafia_chat(make_player(RoleId.CIVILIAN.value, is_alive=True))
+        is False
+    )
+
+
+def test_get_mafia_chat_recipients() -> None:
+    p1 = make_player(RoleId.MAFIA.value, telegram_id=1, display_name="M1")
+    p2 = make_player(RoleId.MAFIA.value, telegram_id=2, display_name="M2", is_alive=False)
+    p3 = make_player(RoleId.DON.value, telegram_id=3, display_name="D")
+    p4 = make_player(RoleId.LAWYER.value, telegram_id=4, display_name="L")
+    p5 = make_player(RoleId.CIVILIAN.value, telegram_id=5, display_name="C")
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.NIGHT,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p1, p2, p3, p4, p5],
+    )
+
+    # Sender M1 (alive)
+    recipients = get_mafia_chat_recipients(state, p1)
+    assert len(recipients) == 2
+    assert {r.telegram_id for r in recipients} == {2, 3}
+
+    # Sender M2 (dead)
+    recipients = get_mafia_chat_recipients(state, p2)
+    assert len(recipients) == 0
+
+    # Sender D (alive)
+    recipients = get_mafia_chat_recipients(state, p3)
+    assert len(recipients) == 2
+    assert {r.telegram_id for r in recipients} == {1, 2}
+
+
+def test_validate_mafia_chat_text() -> None:
+    assert validate_mafia_chat_text(" Hello ") == "Hello"
+    assert validate_mafia_chat_text("   ") is None
+    assert validate_mafia_chat_text("") is None
+    assert validate_mafia_chat_text("A" * (MAX_MAFIA_CHAT_MESSAGE_LENGTH + 1)) is None
+    assert validate_mafia_chat_text("A" * MAX_MAFIA_CHAT_MESSAGE_LENGTH) is not None
+
+
+def test_render_mafia_chat_message() -> None:
+    sender = make_player(RoleId.MAFIA.value, display_name="<b>Alice</b>")
+    text = "Kill <Bob> & survive!"
+    output = render_mafia_chat_message(sender, text)
+
+    assert "💬 Сообщение от <b>&lt;b&gt;Alice&lt;/b&gt;</b>:" in output
+    assert "Kill &lt;Bob&gt; &amp; survive!" in output
+    # Ensure role is not leaked
+    assert "Мафия" not in output
+    assert RoleId.MAFIA.value not in output
