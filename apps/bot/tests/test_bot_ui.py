@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.bot.callbacks import LobbyCallback
+from app.bot.callbacks import LobbyCallback, NightActionCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
-from app.bot.keyboards.night_action import build_night_action_keyboard
+from app.bot.keyboards.night_action import (
+    build_night_action_keyboard,
+    get_available_night_targets,
+)
 from app.bot.presets import select_preset_for_players
 from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
@@ -228,6 +231,7 @@ def test_build_night_action_keyboard() -> None:
                 user_id=bob_id,
                 telegram_id=789,
                 display_name="Bob",
+                role=RoleId.CIVILIAN.value,
             ),
         ],
     )
@@ -239,19 +243,91 @@ def test_build_night_action_keyboard() -> None:
     buttons = [b for row in kb.inline_keyboard for b in row]
     assert len(buttons) == 1
     assert buttons[0].text == "Bob"
-    assert buttons[0].callback_data == f"na:kill:{bob_id}"
+    assert buttons[0].callback_data == NightActionCallback.build(NightActionType.KILL, 789)
 
     # Doctor heal action (can heal self)
     kb = build_night_action_keyboard(state, actor, NightActionType.HEAL)
     buttons = [b for row in kb.inline_keyboard for b in row]
     assert len(buttons) == 2
-    display_names = [b.text for b in buttons]
-    assert "Alice" in display_names
-    assert "Bob" in display_names
 
 
 def test_night_action_callback_encoding_length() -> None:
-    # Test that na:<action>:<uuid> is within 64 bytes
-    target_id = uuid4()
-    cb_data = f"na:kill:{target_id}"
+    # Test that na:<action_type>:<telegram_id> matches 64 bytes
+    # telegram_id can be up to 64 bits (up to 20 digits)
+    cb_data = NightActionCallback.build(NightActionType.PROTECT, 12345678901234567890)
     assert len(cb_data.encode("utf-8")) <= 64
+
+
+def test_night_action_callback_build_parse_valid() -> None:
+    cb_data = NightActionCallback.build(NightActionType.KILL, 123456789)
+    assert cb_data == "na:kill:123456789"
+    parsed = NightActionCallback.parse(cb_data)
+    assert parsed == (NightActionType.KILL, 123456789)
+
+
+def test_night_action_callback_parse_invalid() -> None:
+    assert NightActionCallback.parse("invalid") is None
+    assert NightActionCallback.parse("na:invalid:123") is None
+    assert NightActionCallback.parse("na:kill:abc") is None
+
+
+def test_available_targets_mafia_kill_excludes_teammates() -> None:
+    alice_id = uuid4()
+    bob_id = uuid4()  # another mafia
+    charlie_id = uuid4()  # citizen
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.NIGHT,
+        phase_started_at=datetime.now(timezone.utc),
+        settings=GameSettings(),
+        players=[
+            PlayerState(
+                user_id=alice_id,
+                telegram_id=1,
+                display_name="A",
+                role=RoleId.MAFIA.value,
+            ),
+            PlayerState(
+                user_id=bob_id,
+                telegram_id=2,
+                display_name="B",
+                role=RoleId.DON.value,
+            ),
+            PlayerState(
+                user_id=charlie_id,
+                telegram_id=3,
+                display_name="C",
+                role=RoleId.CIVILIAN.value,
+            ),
+        ],
+    )
+    actor = state.players[0]
+    targets = get_available_night_targets(state, actor, NightActionType.KILL)
+    assert len(targets) == 1
+    assert targets[0].display_name == "C"
+
+
+def test_available_targets_doctor_can_heal_self() -> None:
+    alice_id = uuid4()
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase=GamePhase.NIGHT,
+        phase_started_at=datetime.now(timezone.utc),
+        settings=GameSettings(),
+        players=[
+            PlayerState(
+                user_id=alice_id,
+                telegram_id=1,
+                display_name="A",
+                role=RoleId.DOCTOR.value,
+            ),
+        ],
+    )
+    actor = state.players[0]
+    targets = get_available_night_targets(state, actor, NightActionType.HEAL)
+    assert len(targets) == 1
+    assert targets[0].user_id == alice_id

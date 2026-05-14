@@ -1,19 +1,21 @@
+import html
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import CommandObject, CommandStart
-from uuid import UUID
 
 from app.bot.callbacks import NightActionCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
+from app.bot.keyboards.night_action import get_available_night_targets
 from app.bot.renderers.lobby import render_lobby
 from app.bot.utils import build_join_url
-from app.core.game.actions import NightActionType
+from app.core.game.actions import NightActionType, get_allowed_night_actions
 from app.core.game.engine import (
     GameFullError,
     GameNotFoundError,
     InvalidGamePhaseError,
     PlayerAlreadyInGameError,
 )
+from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase
 from app.infrastructure.container import Container
 
@@ -118,17 +120,12 @@ async def handle_night_action(
     if not callback.from_user or not callback.message:
         return
 
-    data = callback.data.removeprefix(NightActionCallback.PREFIX)
-    parts = data.split(":")
-    if len(parts) != 2:
+    parsed = NightActionCallback.parse(callback.data or "")
+    if not parsed:
+        await callback.answer("Недопустимая кнопка", show_alert=True)
         return
 
-    action_str, target_id_str = parts
-    try:
-        action_type = NightActionType(action_str)
-        target_id = UUID(target_id_str)
-    except ValueError:
-        return
+    action_type, target_telegram_id = parsed
 
     # 1. Resolve game
     game_id = await container.player_game_repository.get_active_game(
@@ -138,48 +135,69 @@ async def handle_night_action(
         await callback.answer("Игра не найдена.", show_alert=True)
         return
 
-    # 2. Get actor user_id
-    async with container.db.get_session() as session:
-        user_repo = container.get_user_repository(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
-        if not user:
-            await callback.answer("Пользователь не найден.", show_alert=True)
-            return
-        user_id = user.id
+    # 2. Get state and validate actor
+    state = await container.game_repository.get(game_id)
+    if not state:
+        await callback.answer("Игра не найдена в хранилище.", show_alert=True)
+        return
 
-    # 3. Submit action
+    if state.phase != GamePhase.NIGHT:
+        await callback.answer("Ночь уже закончилась.", show_alert=True)
+        return
+
+    actor = next(
+        (p for p in state.players if p.telegram_id == callback.from_user.id), None
+    )
+    if not actor or not actor.is_alive:
+        await callback.answer("Вы не участвуете в игре или мертвы.", show_alert=True)
+        return
+
+    # 3. Validate action and target
+    try:
+        role_id = RoleId(actor.role)
+        allowed_actions = get_allowed_night_actions(role_id)
+        if action_type not in allowed_actions:
+            await callback.answer("Это действие вам недоступно.", show_alert=True)
+            return
+    except ValueError:
+        await callback.answer("Ошибка определения вашей роли.", show_alert=True)
+        return
+
+    target = next((p for p in state.players if p.telegram_id == target_telegram_id), None)
+    if not target or not target.is_alive:
+        await callback.answer("Цель больше недоступна.", show_alert=True)
+        return
+
+    # Deep validation using same rules as keyboard
+    available_targets = get_available_night_targets(state, actor, action_type)
+    if not any(t.user_id == target.user_id for t in available_targets):
+        await callback.answer("Этот выбор недопустим.", show_alert=True)
+        return
+
+    # 4. Submit action
     try:
         await container.game_engine.submit_night_action(
             game_id=game_id,
-            actor_id=user_id,
+            actor_user_id=actor.user_id,
             action_type=action_type,
-            target_id=target_id,
+            target_user_id=target.user_id,
         )
 
-        # 4. Confirmation
-        state = await container.game_repository.get(game_id)
-        target_name = "Выбранный игрок"
-        if state:
-            for p in state.players:
-                if p.user_id == target_id:
-                    target_name = p.display_name
-                    break
-
-        await callback.answer(f"Выбор принят: {target_name}")
+        # 5. Confirmation
+        safe_target_name = html.escape(target.display_name)
+        await callback.answer(f"Выбор принят: {target.display_name}")
 
         # Update message to show current selection
-        try:
-            await callback.message.edit_text(
-                f"✅ Вы выбрали: <b>{target_name}</b>\n"
-                f"<i>Вы можете изменить выбор до конца ночи.</i>",
-                parse_mode="HTML",
-            )
-        except TelegramAPIError:
-            # Message might be too old to edit or already has this text
-            pass
+        if isinstance(callback.message, types.Message):
+            try:
+                await callback.message.edit_text(
+                    f"✅ Вы выбрали: <b>{safe_target_name}</b>\n"
+                    f"<i>Вы можете изменить выбор до конца ночи.</i>",
+                    parse_mode="HTML",
+                )
+            except TelegramAPIError:
+                # Message might be too old to edit or already has this text
+                pass
 
     except (GameNotFoundError, InvalidGamePhaseError) as e:
         await callback.answer(f"Ошибка: {str(e)}", show_alert=True)
-    except Exception as e:
-        # Unexpected error
-        await callback.answer("Произошла ошибка при сохранении выбора.", show_alert=True)

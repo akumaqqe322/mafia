@@ -1,44 +1,62 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 
+from app.bot.callbacks import NightActionCallback
 from app.core.game.schemas import GameState, PlayerState
 from app.core.game.actions import NightActionType
+from app.core.game.roles import RoleId
+
+
+def get_available_night_targets(
+    state: GameState,
+    actor: PlayerState,
+    action_type: NightActionType,
+) -> list[PlayerState]:
+    """
+    Returns a list of players that can be targeted by the given actor for the given action.
+    """
+    mafia_team = {RoleId.MAFIA.value, RoleId.DON.value, RoleId.LAWYER.value}
+    targets = []
+
+    for target in state.players:
+        if not target.is_alive:
+            continue
+
+        # Common rule: most actions exclude self
+        if target.user_id == actor.user_id:
+            if action_type != NightActionType.HEAL:
+                continue
+
+        # Role-specific overrides
+        if action_type == NightActionType.KILL:
+            # Mafia cannot kill teammates
+            if actor.role in mafia_team and target.role in mafia_team:
+                continue
+
+        targets.append(target)
+
+    return targets
 
 
 def build_night_action_keyboard(
-    state: GameState, 
-    actor: PlayerState, 
+    state: GameState,
+    actor: PlayerState,
     action_type: NightActionType
 ) -> InlineKeyboardMarkup:
     """
     Builds a keyboard with a list of potential targets for a night action.
-    Target ID is the UUID of the player.
+    Uses telegram_id in callback_data for safety.
     """
     builder = InlineKeyboardBuilder()
-    
-    # Filter alive players
-    # For most actions, actor cannot target themselves.
-    # Exception: Doctor can heal themselves (by default in many mafia versions).
-    # For MVP, let's allow Doctor to heal themselves if needed, 
-    # but for KILL/CHECK let's exclude self.
-    
-    for player in state.players:
-        # Skip dead players
-        if not player.is_alive:
-            continue
-            
-        # Self-target logic
-        if player.user_id == actor.user_id:
-            if action_type != NightActionType.HEAL:
-                continue
-        
-        # Callback data: na:<action_type>:<target_user_id>
-        callback_data = f"na:{action_type.value}:{player.user_id}"
-        
+    targets = get_available_night_targets(state, actor, action_type)
+
+    for target in targets:
+        callback_data = NightActionCallback.build(action_type, target.telegram_id)
+
         builder.button(
-            text=player.display_name,
+            text=target.display_name,
             callback_data=callback_data
         )
-        
+
     builder.adjust(2)
     return builder.as_markup()

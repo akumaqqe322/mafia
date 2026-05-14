@@ -25,9 +25,18 @@ class PlayerGameRepository:
         key = self._get_key(telegram_id)
         result = await self.redis.get(key)
         if result:
-            return UUID(result)
+            if isinstance(result, bytes):
+                result = result.decode()
+            try:
+                return UUID(result)
+            except (ValueError, TypeError):
+                return None
         return None
 
-    async def remove_active_game(self, telegram_id: int) -> None:
+    async def clear_active_game(self, telegram_id: int) -> None:
         key = self._get_key(telegram_id)
         await self.redis.delete(key)
+
+    async def remove_active_game(self, telegram_id: int) -> None:
+        """Alias for clear_active_game for compatibility."""
+        await self.clear_active_game(telegram_id)

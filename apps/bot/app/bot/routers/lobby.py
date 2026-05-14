@@ -128,6 +128,7 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
             game_id=active_game_id,
             user_id=user.id,
         )
+        await container.player_game_repository.clear_active_game(callback.from_user.id)
 
         # Get invite URL
         token = await container.game_invite_repository.create_invite(active_game_id)
@@ -168,6 +169,12 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
     if not active_game_id:
         await callback.answer("No active game found.", show_alert=True)
         return
+
+    # Cleanup mappings for all players if possible
+    state = await container.game_repository.get(active_game_id)
+    if state:
+        for player in state.players:
+            await container.player_game_repository.clear_active_game(player.telegram_id)
 
     # Cleanup invite
     await container.game_invite_repository.delete_by_game_id(active_game_id)
