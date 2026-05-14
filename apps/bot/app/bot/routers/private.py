@@ -75,16 +75,14 @@ async def cmd_start(
             display_name=display_name,
         )
 
-        await message.answer(
-            "✅ You joined the game!"
-        )
+        await message.answer("✅ You joined the game!")
 
         # Update lobby message in group if exists
         if state.lobby_message_id and state.phase == GamePhase.LOBBY:
             bot = message.bot
             if bot:
                 bot_info = await bot.get_me()
-                bot_username = bot_info.username
+                bot_username = bot_info.username or "mafia_bot"
                 invite_url = build_join_url(bot_username, token)
 
                 try:

@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.bot.callbacks import LobbyCallback
+from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.renderers.lobby import render_lobby
 from app.bot.utils import build_join_url
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
-from app.bot.keyboards.lobby import build_lobby_keyboard
 
 
 def test_render_lobby() -> None:
