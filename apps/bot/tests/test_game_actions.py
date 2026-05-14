@@ -9,6 +9,7 @@ from app.core.game.actions import (
     NightActionType,
     deserialize_night_actions,
     serialize_night_actions,
+    get_allowed_night_actions,
 )
 from app.core.game.roles import RoleId
 
@@ -100,3 +101,17 @@ def test_target_can_be_none() -> None:
         created_at=datetime.now(timezone.utc),
     )
     assert action.target_user_id is None
+
+
+def test_get_allowed_night_actions() -> None:
+    assert NightActionType.KILL in get_allowed_night_actions(RoleId.MAFIA)
+    assert NightActionType.HEAL in get_allowed_night_actions(RoleId.DOCTOR)
+    assert NightActionType.CHECK in get_allowed_night_actions(RoleId.SHERIFF)
+    assert NightActionType.CHECK in get_allowed_night_actions(RoleId.DON)
+    assert NightActionType.BLOCK in get_allowed_night_actions(RoleId.LOVER)
+    assert NightActionType.PROTECT in get_allowed_night_actions(RoleId.LAWYER)
+    assert NightActionType.OBSERVE in get_allowed_night_actions(RoleId.HOBO)
+    assert NightActionType.KILL in get_allowed_night_actions(RoleId.MANIAC)
+
+    assert get_allowed_night_actions(RoleId.CIVILIAN) == set()
+    assert get_allowed_night_actions(RoleId.SERGEANT) == set()

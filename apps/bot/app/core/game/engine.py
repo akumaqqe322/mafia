@@ -4,8 +4,15 @@ from uuid import UUID
 
 from app.core.game.assignment import RoleAssignmentService
 from app.core.game.locks import GameLockManager
-from app.core.game.roles import PresetRegistry
+from app.core.game.roles import PresetRegistry, RoleId
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
+from app.core.game.actions import (
+    NightAction,
+    NightActionType,
+    serialize_night_actions,
+    deserialize_night_actions,
+    get_allowed_night_actions,
+)
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
 
@@ -42,6 +49,16 @@ class PlayerNotInGameError(GameEngineException):
 
 class InvalidGamePhaseError(GameEngineException):
     """Game is in invalid phase for this action."""
+    pass
+
+
+class InvalidNightActionError(GameEngineException):
+    """Night action is invalid."""
+    pass
+
+
+class PlayerNotAliveError(GameEngineException):
+    """Player is not alive."""
     pass
 
 
@@ -222,3 +239,64 @@ class GameEngine:
 
             await self.state_repository.delete(game_id)
             await self.active_game_registry.remove_active_game(game_id, state.telegram_chat_id)
+
+    async def submit_night_action(
+        self,
+        game_id: UUID,
+        actor_user_id: UUID,
+        action_type: NightActionType,
+        target_user_id: UUID | None,
+    ) -> GameState:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase != GamePhase.NIGHT:
+                raise InvalidGamePhaseError(f"Cannot submit night action in {state.phase} phase")
+
+            actor = next((p for p in state.players if p.user_id == actor_user_id), None)
+            if not actor:
+                raise PlayerNotInGameError(f"User {actor_user_id} not in game {game_id}")
+
+            if not actor.is_alive:
+                raise PlayerNotAliveError(f"Actor {actor_user_id} is dead")
+
+            if not actor.role:
+                raise InvalidNightActionError(f"Actor {actor_user_id} has no role")
+
+            actor_role = RoleId(actor.role)
+            allowed_actions = get_allowed_night_actions(actor_role)
+            if action_type not in allowed_actions:
+                raise InvalidNightActionError(
+                    f"Action {action_type} is not allowed for role {actor_role}"
+                )
+
+            if target_user_id:
+                target = next((p for p in state.players if p.user_id == target_user_id), None)
+                if not target:
+                    raise InvalidNightActionError(f"Target {target_user_id} not in game")
+                if not target.is_alive:
+                    raise InvalidNightActionError(f"Target {target_user_id} is dead")
+
+            # Create action
+            new_action = NightAction(
+                actor_user_id=actor_user_id,
+                actor_role=actor_role,
+                action_type=action_type,
+                target_user_id=target_user_id,
+                created_at=datetime.now(timezone.utc),
+            )
+
+            # Load and update actions
+            actions = deserialize_night_actions(state.night_actions)
+            # Remove existing action from this actor if any
+            actions = [a for a in actions if a.actor_user_id != actor_user_id]
+            actions.append(new_action)
+
+            # Save back
+            state.night_actions = serialize_night_actions(actions)
+            state.version += 1
+
+            await self.state_repository.save(state)
+            return state

@@ -45,3 +45,18 @@ def deserialize_night_actions(
     if not data:
         return []
     return [NightAction.model_validate(val) for val in data.values()]
+
+
+def get_allowed_night_actions(role: RoleId) -> set[NightActionType]:
+    """Returns a set of allowed night action types for a given role."""
+    mapping: dict[RoleId, set[NightActionType]] = {
+        RoleId.MAFIA: {NightActionType.KILL},
+        RoleId.DON: {NightActionType.CHECK},
+        RoleId.SHERIFF: {NightActionType.CHECK},
+        RoleId.DOCTOR: {NightActionType.HEAL},
+        RoleId.MANIAC: {NightActionType.KILL},
+        RoleId.LOVER: {NightActionType.BLOCK},
+        RoleId.LAWYER: {NightActionType.PROTECT},
+        RoleId.HOBO: {NightActionType.OBSERVE},
+    }
+    return mapping.get(role, set())

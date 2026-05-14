@@ -9,6 +9,8 @@ from app.core.game.engine import (
     GameFullError,
     GameNotFoundError,
     InvalidGamePhaseError,
+    InvalidNightActionError,
+    PlayerNotAliveError,
     NotEnoughPlayersError,
     PlayerAlreadyInGameError,
     PlayerNotInGameError,
@@ -16,6 +18,7 @@ from app.core.game.engine import (
 from app.core.game.locks import GameLockManager
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase, GameSettings
+from app.core.game.actions import NightActionType, deserialize_night_actions
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import (
     RedisGameStateRepository,
@@ -277,3 +280,146 @@ async def test_advance_phase_invalid_finished(game_engine: GameEngine) -> None:
 async def test_advance_phase_not_found(game_engine: GameEngine) -> None:
     with pytest.raises(GameNotFoundError):
         await game_engine.advance_phase(uuid4())
+
+
+@pytest.mark.asyncio
+async def test_submit_night_action_success_mafia(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    # Find mafia player
+    mafia = next(p for p in state.players if p.role == RoleId.MAFIA.value)
+    # Find any other target
+    target = next(p for p in state.players if p.user_id != mafia.user_id)
+
+    state = await game_engine.submit_night_action(
+        game_id,
+        mafia.user_id,
+        NightActionType.KILL,
+        target.user_id
+    )
+
+    actions = deserialize_night_actions(state.night_actions)
+    assert len(actions) == 1
+    assert actions[0].actor_user_id == mafia.user_id
+    assert actions[0].action_type == NightActionType.KILL
+    assert actions[0].target_user_id == target.user_id
+    assert state.version == 8
+
+
+@pytest.mark.asyncio
+async def test_submit_night_action_replace(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    mafia = next(p for p in state.players if p.role == RoleId.MAFIA.value)
+    targets = [p for p in state.players if p.user_id != mafia.user_id]
+
+    # Submit first
+    await game_engine.submit_night_action(
+        game_id, mafia.user_id, NightActionType.KILL, targets[0].user_id
+    )
+
+    # Submit second (change target)
+    state = await game_engine.submit_night_action(
+        game_id, mafia.user_id, NightActionType.KILL, targets[1].user_id
+    )
+
+    actions = deserialize_night_actions(state.night_actions)
+    assert len(actions) == 1
+    assert actions[0].target_user_id == targets[1].user_id
+    assert state.version == 9
+
+
+@pytest.mark.asyncio
+async def test_submit_night_action_invalid_role_mismatch(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    # Patient (Civilian) cannot kill
+    civ = next(p for p in state.players if p.role == RoleId.CIVILIAN.value)
+
+    with pytest.raises(InvalidNightActionError, match="not allowed for role"):
+        await game_engine.submit_night_action(
+            game_id, civ.user_id, NightActionType.KILL, uuid4()
+        )
+
+
+@pytest.mark.asyncio
+async def test_submit_night_action_invalid_phase(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    # Still in LOBBY
+    with pytest.raises(InvalidGamePhaseError):
+        await game_engine.submit_night_action(
+            game_id, uuid4(), NightActionType.KILL, uuid4()
+        )
+
+
+@pytest.mark.asyncio
+async def test_submit_night_action_dead_actor(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    mafia = next(p for p in state.players if p.role == RoleId.MAFIA.value)
+    # Manually kill mafia
+    mafia.is_alive = False
+    await game_engine.state_repository.save(state)
+
+    with pytest.raises(PlayerNotAliveError):
+        await game_engine.submit_night_action(
+            game_id, mafia.user_id, NightActionType.KILL, uuid4()
+        )
+
+
+@pytest.mark.asyncio
+async def test_submit_night_action_invalid_target(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    mafia = next(p for p in state.players if p.role == RoleId.MAFIA.value)
+
+    # Actor not in game
+    with pytest.raises(PlayerNotInGameError):
+        await game_engine.submit_night_action(
+            game_id, uuid4(), NightActionType.KILL, uuid4()
+        )
+
+    # Dead target
+    target = next(p for p in state.players if p.user_id != mafia.user_id)
+    target.is_alive = False
+    await game_engine.state_repository.save(state)
+
+    with pytest.raises(InvalidNightActionError, match="Target .* is dead"):
+        await game_engine.submit_night_action(
+            game_id, mafia.user_id, NightActionType.KILL, target.user_id
+        )
+
+    # Target not in game
+    with pytest.raises(InvalidNightActionError, match="Target .* not in game"):
+        await game_engine.submit_night_action(
+            game_id, mafia.user_id, NightActionType.KILL, uuid4()
+        )

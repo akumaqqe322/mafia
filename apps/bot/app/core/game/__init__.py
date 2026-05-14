@@ -9,6 +9,7 @@ from app.core.game.actions import (
     NightActionType,
     deserialize_night_actions,
     serialize_night_actions,
+    get_allowed_night_actions,
 )
 from app.core.game.engine import (
     GameAlreadyExistsError,
@@ -17,6 +18,8 @@ from app.core.game.engine import (
     GameFullError,
     GameNotFoundError,
     InvalidGamePhaseError,
+    InvalidNightActionError,
+    PlayerNotAliveError,
     NotEnoughPlayersError,
     PlayerAlreadyInGameError,
     PlayerNotInGameError,
@@ -47,6 +50,8 @@ __all__ = [
     "GameFullError",
     "PlayerNotInGameError",
     "InvalidGamePhaseError",
+    "InvalidNightActionError",
+    "PlayerNotAliveError",
     "NotEnoughPlayersError",
     "MatchMode",
     "RoleSide",
@@ -63,4 +68,5 @@ __all__ = [
     "NightActionType",
     "serialize_night_actions",
     "deserialize_night_actions",
+    "get_allowed_night_actions",
 ]
