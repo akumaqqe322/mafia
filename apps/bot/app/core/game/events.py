@@ -1,6 +1,8 @@
 from enum import Enum
 from uuid import UUID, uuid4
+
 from pydantic import BaseModel, Field
+
 
 class GameEventType(str, Enum):
     NIGHT_PLAYER_KILLED = "night_player_killed"
@@ -11,14 +13,17 @@ class GameEventType(str, Enum):
     CHECK_RESULT = "check_result"
     GAME_FINISHED = "game_finished"
 
+
 class EventVisibility(str, Enum):
     PUBLIC = "public"
     PRIVATE = "private"
     TEAM = "team"
     INTERNAL = "internal"
 
+
 GameEventPayloadValue = str | int | bool | None
 GameEventPayload = dict[str, GameEventPayloadValue]
+
 
 class GameEvent(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
