@@ -20,7 +20,6 @@ from app.core.game.engine import (
     PlayerNotInGameError,
 )
 from app.bot.services import (
-    MAFIA_CHAT_ACTIVE_PHASES,
     MAX_MAFIA_CHAT_MESSAGE_LENGTH,
     can_send_mafia_chat,
     get_mafia_chat_recipients,
@@ -35,7 +34,7 @@ from app.infrastructure.container import Container
 router = Router()
 
 
-@router.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
+@router.message(F.chat.type == "private", F.text)
 async def handle_private_text(
     message: types.Message, container: Container
 ) -> None:
@@ -43,24 +42,25 @@ async def handle_private_text(
     if not message.from_user or not message.text:
         return
 
-    # Filter out commands just in case
+    # Filter out commands
     if message.text.startswith("/"):
         return
 
-    # 1. Validate text
-    text = validate_mafia_chat_text(message.text)
-    if not text:
-        await message.answer(
-            f"Сообщение пустое или слишком длинное. Лимит — {MAX_MAFIA_CHAT_MESSAGE_LENGTH} символов."
-        )
-        return
-
-    # 2. Resolve game
+    # 1. Resolve game
     game_id = await container.player_game_repository.get_active_game(
         message.from_user.id
     )
     if not game_id:
         # Ignore text from players not in game to avoid noisy "you are not in game" errors
+        return
+
+    # 2. Validate text
+    text = validate_mafia_chat_text(message.text)
+    if not text:
+        await message.answer(
+            "Сообщение пустое или слишком длинное. "
+            f"Лимит — {MAX_MAFIA_CHAT_MESSAGE_LENGTH} символов."
+        )
         return
 
     # 3. Get state and validate phase
