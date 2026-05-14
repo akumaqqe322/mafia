@@ -1,4 +1,5 @@
 import html
+
 from app.core.game.schemas import GameState, PlayerState
 
 
@@ -10,7 +11,7 @@ def get_newly_dead_players(
     Detects players who were alive in old_state but are dead in new_state.
     """
     old_players = {p.user_id: p for p in old_state.players}
-    newly_dead = []
+    newly_dead: list[PlayerState] = []
 
     for player in new_state.players:
         old_player = old_players.get(player.user_id)
@@ -24,6 +25,7 @@ def render_night_started(state: GameState, dm_failed: bool = False) -> str:
     """
     Renders message for NIGHT started.
     """
+    _ = state
     msg = "<b>🌙 Наступила ночь.</b>\n\nВсе активные роли получили инструкции в личные сообщения."
     if dm_failed:
         msg += (
@@ -61,6 +63,7 @@ def render_voting_started(state: GameState) -> str:
     """
     Renders message for VOTING started.
     """
+    _ = state
     return (
         "<b>⚖️ Началось голосование!</b>\n\n"
         "Обсудите события и выберите, кто покинет город сегодня. "
