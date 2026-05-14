@@ -709,6 +709,73 @@ async def test_resolve_day_votes_tie(game_engine: GameEngine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_resolve_night_victory_mafia(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    p_mafia = uuid4()
+    p_civ1 = uuid4()
+    p_civ2 = uuid4()
+    players = [p_mafia, p_civ1, p_civ2]
+    roles = [RoleId.MAFIA, RoleId.CIVILIAN, RoleId.CIVILIAN]
+
+    for i, (p_id, role) in enumerate(zip(players, roles)):
+        await game_engine.join_game(game_id, p_id, i, f"P{i}")
+
+    # Manually start game to control roles
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        for i, player in enumerate(state.players):
+            player.role = roles[i].value
+        state.phase = GamePhase.NIGHT
+        state.phase_started_at = datetime.now(timezone.utc)
+        await game_engine.state_repository.save(state)
+
+    # Mafia kills civ1 -> 1 mafia vs 1 civ -> Parity
+    await game_engine.submit_night_action(game_id, p_mafia, NightActionType.KILL, p_civ1)
+    await game_engine.resolve_night(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert state.phase == GamePhase.FINISHED
+    assert state.winner_side == WinnerSide.MAFIA.value
+
+
+@pytest.mark.asyncio
+async def test_resolve_day_votes_victory_civilians(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    p_mafia = uuid4()
+    p_civ1 = uuid4()
+    p_civ2 = uuid4()
+    players = [p_mafia, p_civ1, p_civ2]
+    roles = [RoleId.MAFIA, RoleId.CIVILIAN, RoleId.CIVILIAN]
+
+    for i, (p_id, role) in enumerate(zip(players, roles)):
+        await game_engine.join_game(game_id, p_id, i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        for i, player in enumerate(state.players):
+            player.role = roles[i].value
+        state.phase = GamePhase.VOTING
+        state.phase_started_at = datetime.now(timezone.utc)
+        await game_engine.state_repository.save(state)
+
+    # Civilians execute mafia
+    await game_engine.submit_day_vote(game_id, p_civ1, p_mafia)
+    await game_engine.submit_day_vote(game_id, p_civ2, p_mafia)
+
+    await game_engine.resolve_day_votes(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert state.phase == GamePhase.FINISHED
+    assert state.winner_side == WinnerSide.CIVILIANS.value
+
+
+@pytest.mark.asyncio
 async def test_submit_day_vote_dead_voter(game_engine: GameEngine) -> None:
     game_id = uuid4()
     await game_engine.create_game(game_id, uuid4(), 123)

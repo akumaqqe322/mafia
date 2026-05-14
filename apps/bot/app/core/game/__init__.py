@@ -33,6 +33,11 @@ from app.core.game.night_resolver import (
     NightResolutionResult,
     NightResolver,
 )
+from app.core.game.victory import (
+    VictoryCheckResult,
+    VictoryConditionService,
+    WinnerSide,
+)
 from app.core.game.roles import (
     MatchMode,
     PresetRegistry,
@@ -84,4 +89,7 @@ __all__ = [
     "NightResolver",
     "DayVoteResolutionResult",
     "DayVoteResolver",
+    "VictoryCheckResult",
+    "VictoryConditionService",
+    "WinnerSide",
 ]

@@ -40,6 +40,7 @@ class GameState(BaseModel):
     votes: dict[str, str] = Field(default_factory=dict)
     night_actions: dict[str, dict[str, object]] = Field(default_factory=dict)
     settings: GameSettings = Field(default_factory=GameSettings)
+    winner_side: str | None = None
     version: int = 1
 
     @field_validator("phase_started_at", "phase_end_at")

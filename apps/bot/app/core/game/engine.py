@@ -16,6 +16,7 @@ from app.core.game.locks import GameLockManager
 from app.core.game.night_resolver import NightResolutionResult, NightResolver
 from app.core.game.roles import PresetRegistry, RoleId
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
+from app.core.game.victory import VictoryConditionService, WinnerSide
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import (
     RedisGameStateRepository,
@@ -357,6 +358,13 @@ class GameEngine:
             state.night_actions = {}
             state.version += 1
 
+            # Check victory
+            victory_result = VictoryConditionService.check(state)
+            if victory_result.winner_side != WinnerSide.NONE:
+                state.phase = GamePhase.FINISHED
+                state.phase_end_at = None
+                state.winner_side = victory_result.winner_side.value
+
             await self.state_repository.save(state)
             return result
 
@@ -423,6 +431,13 @@ class GameEngine:
             # Clear votes for next day
             state.votes = {}
             state.version += 1
+
+            # Check victory
+            victory_result = VictoryConditionService.check(state)
+            if victory_result.winner_side != WinnerSide.NONE:
+                state.phase = GamePhase.FINISHED
+                state.phase_end_at = None
+                state.winner_side = victory_result.winner_side.value
 
             await self.state_repository.save(state)
             return result
