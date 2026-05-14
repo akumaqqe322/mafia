@@ -1,4 +1,5 @@
 from uuid import uuid4
+
 from app.core.game.day_resolver import DayVoteResolver
 from app.core.game.schemas import GameState
 
@@ -19,7 +20,7 @@ def test_day_resolver_single_winner() -> None:
     p1_id = uuid4()
     p2_id = uuid4()
     p3_id = uuid4()
-    
+
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
@@ -30,7 +31,7 @@ def test_day_resolver_single_winner() -> None:
         str(p1_id): str(p2_id),
         str(p3_id): str(p2_id),
     }
-    
+
     result = DayVoteResolver.resolve(state)
     assert result.executed_user_id == p2_id
     assert result.is_tie is False
@@ -42,7 +43,7 @@ def test_day_resolver_tie() -> None:
     p2_id = uuid4()
     p3_id = uuid4()
     p4_id = uuid4()
-    
+
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
@@ -54,7 +55,7 @@ def test_day_resolver_tie() -> None:
         str(p1_id): str(p2_id),
         str(p3_id): str(p4_id),
     }
-    
+
     result = DayVoteResolver.resolve(state)
     assert result.executed_user_id is None
     assert result.is_tie is True

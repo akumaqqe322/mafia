@@ -1,5 +1,7 @@
 from uuid import UUID
+
 from pydantic import BaseModel, Field
+
 from app.core.game.schemas import GameState
 
 
@@ -31,11 +33,11 @@ class DayVoteResolver:
             return DayVoteResolutionResult(
                 vote_counts=vote_counts,
                 is_tie=True,
-                executed_user_id=None
+                executed_user_id=None,
             )
 
         return DayVoteResolutionResult(
             executed_user_id=leaders[0],
             vote_counts=vote_counts,
-            is_tie=False
+            is_tie=False,
         )
