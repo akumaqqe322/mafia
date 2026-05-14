@@ -3,7 +3,9 @@ from uuid import uuid4
 
 from app.bot.callbacks import LobbyCallback
 from app.bot.renderers.lobby import render_lobby
+from app.bot.utils import build_join_url
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
+from app.bot.keyboards.lobby import build_lobby_keyboard
 
 
 def test_render_lobby() -> None:
@@ -39,3 +41,18 @@ def test_callback_data_length() -> None:
     # Telegram has 64 byte limit for callback data
     for cb in LobbyCallback:
         assert len(cb.value.encode("utf-8")) <= 64
+
+
+def test_build_join_url() -> None:
+    url = build_join_url("my_bot", "token123")
+    assert url == "https://t.me/my_bot?start=join_token123"
+
+
+def test_lobby_keyboard_uses_url() -> None:
+    kb = build_lobby_keyboard(invite_url="https://example.com")
+    # In aiogram 3, we can inspect inline_keyboard
+    first_row = kb.inline_keyboard[0]
+    join_button = first_row[0]
+    assert join_button.text == "Join ✅"
+    assert join_button.url == "https://example.com"
+    assert join_button.callback_data is None

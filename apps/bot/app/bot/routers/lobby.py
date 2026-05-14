@@ -6,6 +6,7 @@ from aiogram.filters import Command
 from app.bot.callbacks import LobbyCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.renderers.lobby import render_lobby
+from app.bot.utils import build_join_url
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameFullError,
@@ -77,11 +78,21 @@ async def cmd_game(message: types.Message, container: Container) -> None:
                 display_name=display_name,
             )
 
-            await message.answer(
+            # Create invite token
+            token = await container.game_invite_repository.create_invite(game_id)
+            bot_info = await message.bot.get_me() if message.bot else None
+            bot_username = bot_info.username if bot_info else "mafia_bot"
+            invite_url = build_join_url(bot_username, token)
+
+            sent = await message.answer(
                 render_lobby(state),
-                reply_markup=build_lobby_keyboard(),
+                reply_markup=build_lobby_keyboard(invite_url),
                 parse_mode="HTML",
             )
+
+            # Save lobby message id
+            state.lobby_message_id = sent.message_id
+            await container.game_repository.save(state)
         except GameAlreadyExistsError:
             await message.answer("An active game already exists in this chat!")
 
@@ -129,9 +140,16 @@ async def handle_join(callback: types.CallbackQuery, container: Container) -> No
             telegram_id=user.telegram_id,
             display_name=display_name,
         )
+
+        # Get invite URL
+        token = await container.game_invite_repository.create_invite(active_game_id)
+        bot_info = await message.bot.get_me() if message.bot else None
+        bot_username = bot_info.username if bot_info else "mafia_bot"
+        invite_url = build_join_url(bot_username, token)
+
         await message.edit_text(
             render_lobby(state),
-            reply_markup=build_lobby_keyboard(),
+            reply_markup=build_lobby_keyboard(invite_url),
             parse_mode="HTML",
         )
         await callback.answer("You joined the game!")
@@ -176,9 +194,16 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
             game_id=active_game_id,
             user_id=user.id,
         )
+
+        # Get invite URL
+        token = await container.game_invite_repository.create_invite(active_game_id)
+        bot_info = await message.bot.get_me() if message.bot else None
+        bot_username = bot_info.username if bot_info else "mafia_bot"
+        invite_url = build_join_url(bot_username, token)
+
         await message.edit_text(
             render_lobby(state),
-            reply_markup=build_lobby_keyboard(),
+            reply_markup=build_lobby_keyboard(invite_url),
             parse_mode="HTML",
         )
         await callback.answer("You left the game.")
@@ -210,6 +235,9 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
         await callback.answer("No active game found.", show_alert=True)
         return
 
+    # Cleanup invite
+    await container.game_invite_repository.delete_by_game_id(active_game_id)
+    
     await container.game_engine.cancel_game(active_game_id)
     await message.edit_text("🚫 Game canceled.")
     await callback.answer("Game canceled.")
