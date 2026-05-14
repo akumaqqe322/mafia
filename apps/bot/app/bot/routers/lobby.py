@@ -1,18 +1,25 @@
 from uuid import uuid4
 
 from aiogram import F, Router, types
+from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 from aiogram.filters import Command
 
 from app.bot.callbacks import LobbyCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
+from app.bot.presets import select_preset_for_players
+from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
+from app.bot.renderers.role import render_role_dm
 from app.bot.utils import build_join_url
 from app.core.game.engine import (
     GameAlreadyExistsError,
     GameNotFoundError,
     InvalidGamePhaseError,
+    NotEnoughPlayersError,
     PlayerNotInGameError,
 )
+from app.core.game.roles import RoleId
+from app.core.game.schemas import GamePhase
 from app.infrastructure.container import Container
 
 router = Router()
@@ -168,5 +175,94 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
 
 
 @router.callback_query(F.data == LobbyCallback.START.value)
-async def handle_start(callback: types.CallbackQuery) -> None:
-    await callback.answer("Start will be added in the next stage! 🚀", show_alert=True)
+async def handle_start(callback: types.CallbackQuery, container: Container) -> None:
+    message = _get_callback_message(callback)
+    if message is None:
+        await callback.answer(
+            "This lobby message is no longer available.",
+            show_alert=True,
+        )
+        return
+
+    tg_chat_id = message.chat.id
+    active_game_id = await container.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+
+    if not active_game_id:
+        await callback.answer("Лобби устарело или игра не найдена.", show_alert=True)
+        return
+
+    state = await container.game_repository.get(active_game_id)
+    if state is None:
+        await callback.answer("Игра не найдена.", show_alert=True)
+        return
+
+    if state.phase != GamePhase.LOBBY:
+        await callback.answer("Игра уже началась!", show_alert=True)
+        return
+
+    players_count = len(state.players)
+    if players_count == 0:
+        await callback.answer("В лобби пока нет игроков!", show_alert=True)
+        return
+
+    preset_id = select_preset_for_players(players_count)
+    if preset_id is None:
+        await callback.answer(
+            f"Недостаточно игроков ({players_count}) для доступных режимов.",
+            show_alert=True,
+        )
+        return
+
+    try:
+        # 1. Start game in engine
+        started_state = await container.game_engine.start_game(
+            active_game_id, preset_id
+        )
+
+        # 2. Cleanup invite token
+        await container.game_invite_repository.delete_by_game_id(active_game_id)
+
+        # 3. Send roles privately
+        # TODO: strict DM validation before start / remove blocked players
+        dm_failed_players = []
+        for player in started_state.players:
+            if player.role is None:
+                continue
+
+            try:
+                role_id = RoleId(player.role)
+                await callback.bot.send_message(
+                    chat_id=player.telegram_id,
+                    text=render_role_dm(role_id),
+                    parse_mode="HTML",
+                )
+            except (TelegramForbiddenError, TelegramAPIError):
+                dm_failed_players.append(player.display_name)
+
+        # 4. Update group message
+        group_text = render_game_started(started_state)
+        if dm_failed_players:
+            group_text += (
+                "\n\n⚠️ Некоторым игрокам не удалось отправить роль в ЛС. "
+                "Убедитесь, что бот не заблокирован."
+            )
+
+        await message.edit_text(
+            text=group_text,
+            reply_markup=None,
+            parse_mode="HTML",
+        )
+        await callback.answer("Игра началась!")
+
+    except NotEnoughPlayersError:
+        await callback.answer("Недостаточно игроков!", show_alert=True)
+    except InvalidGamePhaseError:
+        await callback.answer("Игра уже началась!", show_alert=True)
+    except GameNotFoundError:
+        await callback.answer("Игра не найдена.", show_alert=True)
+    except Exception as e:
+        # Log unexpected errors
+        print(f"Error starting game: {e}")
+        await callback.answer("Произошла ошибка при запуске игры.", show_alert=True)
