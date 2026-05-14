@@ -17,7 +17,7 @@ from app.core.game.engine import (
     PlayerNotAliveError,
     PlayerNotInGameError,
 )
-from app.core.game.events import EventVisibility, GameEventType
+from app.core.game.events import EventVisibility, GameEvent, GameEventType
 from app.core.game.locks import GameLockManager
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase, GameSettings
@@ -1480,7 +1480,6 @@ async def test_resolve_night_without_checks_clears_last_events(
         state = await game_engine.state_repository.get(game_id)
         assert state is not None
         # Add some old event
-        from app.core.game.events import EventVisibility, GameEvent, GameEventType
 
         state.last_events = [
             GameEvent(type=GameEventType.DAY_VOTE_TIE, visibility=EventVisibility.PUBLIC)
