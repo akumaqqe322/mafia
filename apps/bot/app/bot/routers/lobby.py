@@ -11,6 +11,7 @@ from app.bot.renderers.game import render_game_started
 from app.bot.renderers.lobby import render_lobby
 from app.bot.renderers.role import render_role_dm
 from app.bot.services.night_actions import send_night_action_menus
+from app.bot.services import can_manage_game
 from app.bot.utils import build_join_url
 from app.core.game.engine import (
     GameAlreadyExistsError,
@@ -20,7 +21,7 @@ from app.core.game.engine import (
     PlayerNotInGameError,
 )
 from app.core.game.roles import RoleId
-from app.core.game.schemas import GamePhase
+from app.core.game.schemas import GamePhase, GameState
 from app.infrastructure.container import Container
 
 router = Router()
@@ -33,6 +34,33 @@ def _get_callback_message(
     if isinstance(callback.message, types.Message):
         return callback.message
     return None
+
+
+async def _ensure_can_manage_game(
+    callback: types.CallbackQuery,
+    state: GameState,
+    action_name: str,
+) -> bool:
+    """Checks if user has permission to manage the lobby (creator or admin)."""
+    if not callback.from_user:
+        return False
+
+    bot = callback.bot
+    if bot is None:
+        await callback.answer("Бот временно недоступен.", show_alert=True)
+        return False
+
+    allowed = await can_manage_game(bot, state, callback.from_user.id)
+    if allowed:
+        return True
+
+    if action_name == "start":
+        msg = "Запустить игру может только создатель лобби или администратор группы."
+    else:
+        msg = "Отменить лобби может только создатель лобби или администратор группы."
+
+    await callback.answer(msg, show_alert=True)
+    return False
 
 
 @router.message(Command("game"))
@@ -169,11 +197,21 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
         await callback.answer("No active game found.", show_alert=True)
         return
 
-    # Cleanup mappings for all players if possible
     state = await container.game_repository.get(active_game_id)
-    if state:
-        for player in state.players:
-            await container.player_game_repository.clear_active_game(player.telegram_id)
+    if state is None:
+        await callback.answer("Игра не найдена.", show_alert=True)
+        return
+
+    if state.phase != GamePhase.LOBBY:
+        await callback.answer("Отменить можно только лобби до начала игры.", show_alert=True)
+        return
+
+    if not await _ensure_can_manage_game(callback, state, "cancel"):
+        return
+
+    # Cleanup mappings for all players
+    for player in state.players:
+        await container.player_game_repository.clear_active_game(player.telegram_id)
 
     # Cleanup invite
     await container.game_invite_repository.delete_by_game_id(active_game_id)
@@ -209,6 +247,9 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
 
     if state.phase != GamePhase.LOBBY:
         await callback.answer("Игра уже началась!", show_alert=True)
+        return
+
+    if not await _ensure_can_manage_game(callback, state, "start"):
         return
 
     players_count = len(state.players)
