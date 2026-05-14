@@ -125,7 +125,11 @@ class VictoryConditionService:
             )
 
         # D. MAFIA WIN
-        if len(mafia_alive) > 0 and len(maniac_alive) == 0 and len(mafia_alive) >= len(town_alive):
+        if (
+            len(mafia_alive) > 0
+            and len(maniac_alive) == 0
+            and len(mafia_alive) >= len(town_alive)
+        ):
             return VictoryCheckResult(
                 winner_side=WinnerSide.MAFIA,
                 reason="mafia_parity",

@@ -20,6 +20,7 @@ from app.core.game.engine import (
 from app.core.game.locks import GameLockManager
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase, GameSettings
+from app.core.game.victory import WinnerSide
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import (
     RedisGameStateRepository,
