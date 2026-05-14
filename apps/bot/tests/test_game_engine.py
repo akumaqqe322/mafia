@@ -496,3 +496,79 @@ async def test_submit_night_action_unknown_actor_role(game_engine: GameEngine) -
             NightActionType.KILL,
             uuid4(),
         )
+
+
+@pytest.mark.asyncio
+async def test_resolve_night_success_kill(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    mafia = next(p for p in state.players if p.role == RoleId.MAFIA.value)
+    target = next(p for p in state.players if p.user_id != mafia.user_id)
+
+    # Submit kill
+    await game_engine.submit_night_action(
+        game_id, mafia.user_id, NightActionType.KILL, target.user_id
+    )
+
+    result = await game_engine.resolve_night(game_id)
+
+    assert result.killed_user_ids == [target.user_id]
+
+    # Verify state mutation
+    state = await game_engine.state_repository.get(game_id)
+    target_player = next(p for p in state.players if p.user_id == target.user_id)
+    assert target_player.is_alive is False
+    assert state.night_actions == {}
+    assert state.version == 10  # start(7) + submit(8) + resolve(9?) wait
+    # start is 7
+    # submit sets version to 8
+    # resolve sets version to 9
+    assert state.version == 9
+
+
+@pytest.mark.asyncio
+async def test_resolve_night_saved_by_heal(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P {i}")
+
+    state = await game_engine.start_game(game_id, "classic_5_6")
+
+    mafia = next(p for p in state.players if p.role == RoleId.MAFIA.value)
+    doctor = next(p for p in state.players if p.role == RoleId.DOCTOR.value)
+    target = next(
+        p for p in state.players if p.user_id not in (mafia.user_id, doctor.user_id)
+    )
+
+    # Mafia kills
+    await game_engine.submit_night_action(
+        game_id, mafia.user_id, NightActionType.KILL, target.user_id
+    )
+    # Doctor heals
+    await game_engine.submit_night_action(
+        game_id, doctor.user_id, NightActionType.HEAL, target.user_id
+    )
+
+    result = await game_engine.resolve_night(game_id)
+
+    assert result.killed_user_ids == []
+    assert result.saved_user_ids == [target.user_id]
+
+    state = await game_engine.state_repository.get(game_id)
+    target_player = next(p for p in state.players if p.user_id == target.user_id)
+    assert target_player.is_alive is True
+
+
+@pytest.mark.asyncio
+async def test_resolve_night_invalid_phase(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+
+    with pytest.raises(InvalidGamePhaseError):
+        await game_engine.resolve_night(game_id)

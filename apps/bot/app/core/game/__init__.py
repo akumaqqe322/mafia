@@ -26,6 +26,11 @@ from app.core.game.engine import (
     PlayerNotInGameError,
 )
 from app.core.game.locks import GameLockManager
+from app.core.game.night_resolver import (
+    NightCheckResult,
+    NightResolutionResult,
+    NightResolver,
+)
 from app.core.game.roles import (
     MatchMode,
     PresetRegistry,
@@ -71,4 +76,7 @@ __all__ = [
     "deserialize_night_actions",
     "get_allowed_night_actions",
     "night_action_requires_target",
+    "NightCheckResult",
+    "NightResolutionResult",
+    "NightResolver",
 ]

@@ -12,6 +12,7 @@ from app.core.game.actions import (
 )
 from app.core.game.assignment import RoleAssignmentService
 from app.core.game.locks import GameLockManager
+from app.core.game.night_resolver import NightResolutionResult, NightResolver
 from app.core.game.roles import PresetRegistry, RoleId
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
@@ -326,3 +327,29 @@ class GameEngine:
 
             await self.state_repository.save(state)
             return state
+
+    async def resolve_night(self, game_id: UUID) -> NightResolutionResult:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase != GamePhase.NIGHT:
+                raise InvalidGamePhaseError(
+                    f"Cannot resolve night in {state.phase} phase"
+                )
+
+            result = NightResolver.resolve(state)
+
+            # Apply deaths
+            for killed_id in result.killed_user_ids:
+                player = next((p for p in state.players if p.user_id == killed_id), None)
+                if player:
+                    player.is_alive = False
+
+            # Clear actions for next night
+            state.night_actions = {}
+            state.version += 1
+
+            await self.state_repository.save(state)
+            return result
