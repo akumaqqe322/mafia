@@ -1,17 +1,19 @@
-import uuid
-from aiogram import Router, types, F
+from uuid import uuid4
+
+from aiogram import F, Router, types
 from aiogram.filters import Command
 
-from app.core.game.engine import (
-    PlayerAlreadyInGameError,
-    GameFullError,
-    GameNotFoundError,
-    GameAlreadyExistsError,
-)
-from app.core.game.schemas import GamePhase
 from app.bot.callbacks import LobbyCallback
 from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.renderers.lobby import render_lobby
+from app.core.game.engine import (
+    GameAlreadyExistsError,
+    GameFullError,
+    GameNotFoundError,
+    InvalidGamePhaseError,
+    PlayerAlreadyInGameError,
+    PlayerNotInGameError,
+)
 from app.infrastructure.container import Container
 
 router = Router()
@@ -24,12 +26,15 @@ async def cmd_game(message: types.Message, container: Container) -> None:
         await message.answer("Please use this command in a group chat.")
         return
 
+    if not message.from_user:
+        return
+
     tg_chat_id = message.chat.id
-    
+
     async with container.db.get_session() as session:
         chat_repo = container.get_chat_repository(session)
         user_repo = container.get_user_repository(session)
-        
+
         chat = await chat_repo.get_or_create(
             telegram_chat_id=tg_chat_id,
             title=message.chat.title,
@@ -43,25 +48,30 @@ async def cmd_game(message: types.Message, container: Container) -> None:
         )
         await session.commit()
 
-        game_id = uuid.uuid4()
+        game_id = uuid4()
         try:
             state = await container.game_engine.create_game(
                 game_id=game_id,
                 chat_id=chat.id,
-                telegram_chat_id=tg_chat_id
+                telegram_chat_id=tg_chat_id,
             )
             # Auto join creator
+            display_name = (
+                user.username
+                or user.first_name
+                or f"User {user.telegram_id}"
+            )
             state = await container.game_engine.join_game(
                 game_id=game_id,
                 user_id=user.id,
                 telegram_id=user.telegram_id,
-                display_name=user.username or user.first_name,
+                display_name=display_name,
             )
 
             await message.answer(
                 render_lobby(state),
                 reply_markup=build_lobby_keyboard(),
-                parse_mode="HTML"
+                parse_mode="HTML",
             )
         except GameAlreadyExistsError:
             await message.answer("An active game already exists in this chat!")
@@ -69,9 +79,14 @@ async def cmd_game(message: types.Message, container: Container) -> None:
 
 @router.callback_query(F.data == LobbyCallback.JOIN)
 async def handle_join(callback: types.CallbackQuery, container: Container) -> None:
+    if not callback.message or not callback.from_user:
+        return
+
     tg_chat_id = callback.message.chat.id
-    active_game_id = await container.active_game_registry.get_active_game_by_chat(tg_chat_id)
-    
+    active_game_id = await container.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+
     if not active_game_id:
         await callback.answer("No active game found.", show_alert=True)
         return
@@ -87,16 +102,21 @@ async def handle_join(callback: types.CallbackQuery, container: Container) -> No
         await session.commit()
 
     try:
+        display_name = (
+            user.username
+            or user.first_name
+            or f"User {user.telegram_id}"
+        )
         state = await container.game_engine.join_game(
             game_id=active_game_id,
             user_id=user.id,
             telegram_id=user.telegram_id,
-            display_name=user.username or user.first_name or f"User {user.telegram_id}",
+            display_name=display_name,
         )
         await callback.message.edit_text(
             render_lobby(state),
             reply_markup=build_lobby_keyboard(),
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         await callback.answer("You joined the game!")
     except PlayerAlreadyInGameError:
@@ -109,9 +129,14 @@ async def handle_join(callback: types.CallbackQuery, container: Container) -> No
 
 @router.callback_query(F.data == LobbyCallback.LEAVE)
 async def handle_leave(callback: types.CallbackQuery, container: Container) -> None:
+    if not callback.message or not callback.from_user:
+        return
+
     tg_chat_id = callback.message.chat.id
-    active_game_id = await container.active_game_registry.get_active_game_by_chat(tg_chat_id)
-    
+    active_game_id = await container.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+
     if not active_game_id:
         await callback.answer("No active game found.", show_alert=True)
         return
@@ -131,19 +156,28 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
         await callback.message.edit_text(
             render_lobby(state),
             reply_markup=build_lobby_keyboard(),
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         await callback.answer("You left the game.")
-    except Exception as e:
-        await callback.answer(f"Error: {str(e)}", show_alert=True)
+    except PlayerNotInGameError:
+        await callback.answer("You are not in the game!", show_alert=True)
+    except InvalidGamePhaseError:
+        await callback.answer("You can only leave during lobby phase!", show_alert=True)
+    except GameNotFoundError:
+        await callback.answer("Game not found.", show_alert=True)
 
 
 @router.callback_query(F.data == LobbyCallback.CANCEL)
 async def handle_cancel(callback: types.CallbackQuery, container: Container) -> None:
+    if not callback.message:
+        return
+
     # TODO: restrict to creator or admin
     tg_chat_id = callback.message.chat.id
-    active_game_id = await container.active_game_registry.get_active_game_by_chat(tg_chat_id)
-    
+    active_game_id = await container.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+
     if not active_game_id:
         await callback.answer("No active game found.", show_alert=True)
         return

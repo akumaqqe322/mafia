@@ -9,7 +9,7 @@ def render_lobby(state: GameState) -> str:
     players_list = ""
     if state.players:
         players_list = "\n".join(
-            [f"{i+1}. {p.display_name}" for i, p in enumerate(state.players)]
+            f"{i + 1}. {p.display_name}" for i, p in enumerate(state.players)
         )
         players_list = f"\n\n<b>Players:</b>\n{players_list}"
 
