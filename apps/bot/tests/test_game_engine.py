@@ -719,9 +719,10 @@ async def test_submit_day_vote_dead_voter(game_engine: GameEngine) -> None:
     for i in range(3):
         await game_engine.join_game(game_id, uuid4(), 100 + i, f"P {i}")
 
-    state = await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.start_game(game_id, "classic_5_6")
     await game_engine.advance_phase(game_id)
-    await game_engine.advance_phase(game_id)
+    state = await game_engine.advance_phase(game_id)
+    assert state.phase == GamePhase.VOTING
 
     # Manually kill p1
     voter = next(p for p in state.players if p.user_id == p1_id)
@@ -743,9 +744,10 @@ async def test_submit_day_vote_invalid_target(game_engine: GameEngine) -> None:
     for i in range(3):
         await game_engine.join_game(game_id, uuid4(), 100 + i, f"P {i}")
 
-    state = await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.start_game(game_id, "classic_5_6")
     await game_engine.advance_phase(game_id)
-    await game_engine.advance_phase(game_id)
+    state = await game_engine.advance_phase(game_id)
+    assert state.phase == GamePhase.VOTING
 
     # Target not in game
     with pytest.raises(InvalidVoteError, match="not in game"):
