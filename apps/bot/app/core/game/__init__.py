@@ -8,8 +8,9 @@ from app.core.game.actions import (
     NightAction,
     NightActionType,
     deserialize_night_actions,
-    serialize_night_actions,
     get_allowed_night_actions,
+    night_action_requires_target,
+    serialize_night_actions,
 )
 from app.core.game.engine import (
     GameAlreadyExistsError,
@@ -69,4 +70,5 @@ __all__ = [
     "serialize_night_actions",
     "deserialize_night_actions",
     "get_allowed_night_actions",
+    "night_action_requires_target",
 ]

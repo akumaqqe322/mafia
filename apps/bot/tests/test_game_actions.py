@@ -8,8 +8,9 @@ from app.core.game.actions import (
     NightAction,
     NightActionType,
     deserialize_night_actions,
-    serialize_night_actions,
     get_allowed_night_actions,
+    night_action_requires_target,
+    serialize_night_actions,
 )
 from app.core.game.roles import RoleId
 
@@ -115,3 +116,12 @@ def test_get_allowed_night_actions() -> None:
 
     assert get_allowed_night_actions(RoleId.CIVILIAN) == set()
     assert get_allowed_night_actions(RoleId.SERGEANT) == set()
+
+
+def test_night_action_requires_target() -> None:
+    assert night_action_requires_target(NightActionType.KILL) is True
+    assert night_action_requires_target(NightActionType.HEAL) is True
+    assert night_action_requires_target(NightActionType.CHECK) is True
+    assert night_action_requires_target(NightActionType.BLOCK) is True
+    assert night_action_requires_target(NightActionType.PROTECT) is True
+    assert night_action_requires_target(NightActionType.OBSERVE) is True

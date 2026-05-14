@@ -60,3 +60,16 @@ def get_allowed_night_actions(role: RoleId) -> set[NightActionType]:
         RoleId.HOBO: {NightActionType.OBSERVE},
     }
     return mapping.get(role, set())
+
+
+def night_action_requires_target(action_type: NightActionType) -> bool:
+    """Returns True if the night action type requires a target player."""
+    # All current actions require a target
+    return action_type in {
+        NightActionType.KILL,
+        NightActionType.HEAL,
+        NightActionType.CHECK,
+        NightActionType.BLOCK,
+        NightActionType.PROTECT,
+        NightActionType.OBSERVE,
+    }

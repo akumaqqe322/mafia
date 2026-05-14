@@ -2,17 +2,18 @@ import random
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from app.core.game.actions import (
+    NightAction,
+    NightActionType,
+    deserialize_night_actions,
+    get_allowed_night_actions,
+    night_action_requires_target,
+    serialize_night_actions,
+)
 from app.core.game.assignment import RoleAssignmentService
 from app.core.game.locks import GameLockManager
 from app.core.game.roles import PresetRegistry, RoleId
 from app.core.game.schemas import GamePhase, GameSettings, GameState, PlayerState
-from app.core.game.actions import (
-    NightAction,
-    NightActionType,
-    serialize_night_actions,
-    deserialize_night_actions,
-    get_allowed_night_actions,
-)
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
 
@@ -265,12 +266,19 @@ class GameEngine:
             if not actor.role:
                 raise InvalidNightActionError(f"Actor {actor_user_id} has no role")
 
-            actor_role = RoleId(actor.role)
+            try:
+                actor_role = RoleId(actor.role)
+            except ValueError:
+                raise InvalidNightActionError(f"Actor {actor_user_id} has invalid role: {actor.role}")
+
             allowed_actions = get_allowed_night_actions(actor_role)
             if action_type not in allowed_actions:
                 raise InvalidNightActionError(
                     f"Action {action_type} is not allowed for role {actor_role}"
                 )
+
+            if night_action_requires_target(action_type) and target_user_id is None:
+                raise InvalidNightActionError(f"Action {action_type} requires a target")
 
             if target_user_id:
                 target = next((p for p in state.players if p.user_id == target_user_id), None)
