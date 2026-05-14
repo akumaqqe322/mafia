@@ -1,8 +1,8 @@
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from app.core.game.actions import NightActionType, deserialize_night_actions
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GameState
-from app.core.game.actions import deserialize_night_actions, NightActionType
 
 
 class NightCheckResult(BaseModel):
@@ -13,10 +13,10 @@ class NightCheckResult(BaseModel):
 
 
 class NightResolutionResult(BaseModel):
-    killed_user_ids: list[UUID] = []
-    saved_user_ids: list[UUID] = []
-    checks: list[NightCheckResult] = []
-    summary_events: list[str] = []
+    killed_user_ids: list[UUID] = Field(default_factory=list)
+    saved_user_ids: list[UUID] = Field(default_factory=list)
+    checks: list[NightCheckResult] = Field(default_factory=list)
+    summary_events: list[str] = Field(default_factory=list)
 
 
 class NightResolver:

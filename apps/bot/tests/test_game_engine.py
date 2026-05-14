@@ -521,13 +521,10 @@ async def test_resolve_night_success_kill(game_engine: GameEngine) -> None:
 
     # Verify state mutation
     state = await game_engine.state_repository.get(game_id)
+    assert state is not None
     target_player = next(p for p in state.players if p.user_id == target.user_id)
     assert target_player.is_alive is False
     assert state.night_actions == {}
-    assert state.version == 10  # start(7) + submit(8) + resolve(9?) wait
-    # start is 7
-    # submit sets version to 8
-    # resolve sets version to 9
     assert state.version == 9
 
 
@@ -561,6 +558,7 @@ async def test_resolve_night_saved_by_heal(game_engine: GameEngine) -> None:
     assert result.saved_user_ids == [target.user_id]
 
     state = await game_engine.state_repository.get(game_id)
+    assert state is not None
     target_player = next(p for p in state.players if p.user_id == target.user_id)
     assert target_player.is_alive is True
 
