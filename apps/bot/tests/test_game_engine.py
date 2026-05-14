@@ -17,6 +17,7 @@ from app.core.game.engine import (
     PlayerNotAliveError,
     PlayerNotInGameError,
 )
+from app.core.game.events import EventVisibility, GameEventType
 from app.core.game.locks import GameLockManager
 from app.core.game.roles import RoleId
 from app.core.game.schemas import GamePhase, GameSettings
@@ -1262,6 +1263,124 @@ async def test_tick_game_voting_victory_stops_game(game_engine: GameEngine) -> N
         tg_chat_id
     )
     assert active_id is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_day_votes_adds_executed_event(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    players: list[UUID] = []
+    for i in range(5):
+        uid = uuid4()
+        players.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    # 3 votes for p0
+    await game_engine.submit_day_vote(game_id, players[1], players[0])
+    await game_engine.submit_day_vote(game_id, players[2], players[0])
+    await game_engine.submit_day_vote(game_id, players[3], players[0])
+
+    await game_engine.resolve_day_votes(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert len(state.last_events) == 1
+    event = state.last_events[0]
+    assert event.type == GameEventType.DAY_PLAYER_EXECUTED
+    assert event.visibility == EventVisibility.PUBLIC
+    assert event.target_user_id == players[0]
+    assert event.payload["votes_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_resolve_day_votes_adds_tie_event(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    players: list[UUID] = []
+    for i in range(5):
+        uid = uuid4()
+        players.append(uid)
+        await game_engine.join_game(game_id, uid, i, f"P{i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    # 1 vote for p0, 1 vote for p1
+    await game_engine.submit_day_vote(game_id, players[2], players[0])
+    await game_engine.submit_day_vote(game_id, players[3], players[1])
+
+    await game_engine.resolve_day_votes(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert len(state.last_events) == 1
+    event = state.last_events[0]
+    assert event.type == GameEventType.DAY_VOTE_TIE
+    assert event.visibility == EventVisibility.PUBLIC
+    assert len(event.related_user_ids) == 2
+    assert players[0] in event.related_user_ids
+    assert players[1] in event.related_user_ids
+    assert event.payload["votes_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_resolve_day_votes_adds_no_votes_event(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), i, f"P{i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+    await game_engine.advance_phase(game_id)
+    await game_engine.advance_phase(game_id)
+
+    await game_engine.resolve_day_votes(game_id)
+
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert len(state.last_events) == 1
+    event = state.last_events[0]
+    assert event.type == GameEventType.DAY_VOTE_NO_VOTES
+    assert event.visibility == EventVisibility.PUBLIC
+    assert not event.payload
+
+
+@pytest.mark.asyncio
+async def test_tick_game_voting_persists_day_vote_event(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+
+    # 1 mafia + 3 civilians
+    p_mafia = uuid4()
+    p_civs = [uuid4() for _ in range(3)]
+    for i, p_id in enumerate([p_mafia] + p_civs):
+        await game_engine.join_game(game_id, p_id, 100 + i, f"P{i}")
+
+    async with game_engine.lock_manager.lock(game_id):
+        state = await game_engine.state_repository.get(game_id)
+        assert state is not None
+        state.players[0].role = RoleId.MAFIA.value
+        for i in range(1, 4):
+            state.players[i].role = RoleId.CIVILIAN.value
+        state.phase = GamePhase.VOTING
+        await game_engine.state_repository.save(state)
+
+    # Civilians execute p_civs[0]
+    await game_engine.submit_day_vote(game_id, p_civs[1], p_civs[0])
+    await game_engine.submit_day_vote(game_id, p_civs[2], p_civs[0])
+
+    # Tick game
+    state = await game_engine.tick_game(game_id)
+
+    assert state.phase == GamePhase.NIGHT
+    assert len(state.last_events) == 1
+    assert state.last_events[0].type == GameEventType.DAY_PLAYER_EXECUTED
+    assert state.last_events[0].target_user_id == p_civs[0]
 
 
 @pytest.mark.asyncio

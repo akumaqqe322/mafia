@@ -12,6 +12,7 @@ from app.core.game.actions import (
 )
 from app.core.game.assignment import RoleAssignmentService
 from app.core.game.day_resolver import DayVoteResolutionResult, DayVoteResolver
+from app.core.game.events import EventVisibility, GameEvent, GameEventType
 from app.core.game.locks import GameLockManager
 from app.core.game.night_resolver import NightResolutionResult, NightResolver
 from app.core.game.roles import PresetRegistry, RoleId
@@ -438,9 +439,50 @@ class GameEngine:
             await self.state_repository.save(state)
             return state
 
+    def _build_day_vote_events(
+        self,
+        result: DayVoteResolutionResult,
+    ) -> list[GameEvent]:
+        if result.executed_user_id:
+            votes_count = result.vote_counts.get(result.executed_user_id, 0)
+            return [
+                GameEvent(
+                    type=GameEventType.DAY_PLAYER_EXECUTED,
+                    visibility=EventVisibility.PUBLIC,
+                    target_user_id=result.executed_user_id,
+                    payload={"votes_count": votes_count},
+                )
+            ]
+
+        if result.is_tie:
+            max_votes = max(result.vote_counts.values()) if result.vote_counts else 0
+            tied_user_ids = [
+                user_id
+                for user_id, count in result.vote_counts.items()
+                if count == max_votes
+            ]
+            return [
+                GameEvent(
+                    type=GameEventType.DAY_VOTE_TIE,
+                    visibility=EventVisibility.PUBLIC,
+                    related_user_ids=tied_user_ids,
+                    payload={"votes_count": max_votes},
+                )
+            ]
+
+        return [
+            GameEvent(
+                type=GameEventType.DAY_VOTE_NO_VOTES,
+                visibility=EventVisibility.PUBLIC,
+            )
+        ]
+
     def _resolve_day_votes_in_state(self, state: GameState) -> DayVoteResolutionResult:
         """Core day vote resolution logic without locks or saves."""
         result = DayVoteResolver.resolve(state)
+
+        # Build and store events
+        state.last_events = self._build_day_vote_events(result)
 
         if result.executed_user_id:
             player = next(
