@@ -272,6 +272,33 @@ class GameEngine:
                 game_id, state.telegram_chat_id
             )
 
+    async def force_finish_game(
+        self,
+        game_id: UUID,
+        winner_side: str = "admin_stopped",
+    ) -> GameState:
+        async with self.lock_manager.lock(game_id):
+            state = await self.state_repository.get(game_id)
+            if not state:
+                raise GameNotFoundError(f"Game {game_id} not found")
+
+            if state.phase == GamePhase.FINISHED:
+                return state
+
+            if state.phase == GamePhase.LOBBY:
+                raise InvalidGamePhaseError("Cannot force finish a lobby")
+
+            state.phase = GamePhase.FINISHED
+            state.phase_end_at = None
+            state.winner_side = winner_side
+            state.version += 1
+
+            await self.state_repository.save(state)
+            await self.active_game_registry.remove_active_game(
+                game_id, state.telegram_chat_id
+            )
+            return state
+
     async def submit_night_action(
         self,
         game_id: UUID,

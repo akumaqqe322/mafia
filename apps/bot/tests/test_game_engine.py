@@ -1523,3 +1523,89 @@ async def test_tick_game_night_persists_check_result_event(
     state = await game_engine.tick_game(game_id)
 
     assert any(e.type == GameEventType.CHECK_RESULT for e in state.last_events)
+
+
+@pytest.mark.asyncio
+async def test_force_finish_game_success(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    # Join 5 players
+    players: list[UUID] = []
+    for i in range(5):
+        uid = uuid4()
+        players.append(uid)
+        await game_engine.join_game(game_id, uid, 1000 + i, f"P{i}")
+
+    # Start game to move to active phase (NIGHT)
+    state = await game_engine.start_game(game_id, "classic_5_6")
+    assert state.phase == GamePhase.NIGHT
+    version_before = state.version
+
+    # Force finish
+    result = await game_engine.force_finish_game(game_id)
+
+    assert result.phase == GamePhase.FINISHED
+    assert result.winner_side == "admin_stopped"
+    assert result.phase_end_at is None
+    assert result.version == version_before + 1
+
+    # Verify registry
+    active_id = await game_engine.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+    assert active_id is None
+
+    # Verify state persistence
+    persisted = await game_engine.state_repository.get(game_id)
+    assert persisted is not None
+    assert persisted.phase == GamePhase.FINISHED
+    assert len(persisted.players) == 5
+
+
+@pytest.mark.asyncio
+async def test_force_finish_game_rejects_lobby(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    tg_chat_id = 123
+    await game_engine.create_game(game_id, uuid4(), tg_chat_id)
+
+    with pytest.raises(InvalidGamePhaseError, match="Cannot force finish a lobby"):
+        await game_engine.force_finish_game(game_id)
+
+    # State still should be LOBBY
+    state = await game_engine.state_repository.get(game_id)
+    assert state is not None
+    assert state.phase == GamePhase.LOBBY
+
+    # Still in registry
+    active_id = await game_engine.active_game_registry.get_active_game_by_chat(
+        tg_chat_id
+    )
+    assert active_id == game_id
+
+
+@pytest.mark.asyncio
+async def test_force_finish_game_already_finished_noop(game_engine: GameEngine) -> None:
+    game_id = uuid4()
+    await game_engine.create_game(game_id, uuid4(), 123)
+    for i in range(5):
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P{i}")
+
+    await game_engine.start_game(game_id, "classic_5_6")
+
+    # First finish
+    state = await game_engine.force_finish_game(game_id)
+    assert state.phase == GamePhase.FINISHED
+    version_after_first = state.version
+
+    # Second finish call
+    result = await game_engine.force_finish_game(game_id)
+    assert result.phase == GamePhase.FINISHED
+    assert result.version == version_after_first
+
+
+@pytest.mark.asyncio
+async def test_force_finish_game_not_found(game_engine: GameEngine) -> None:
+    with pytest.raises(GameNotFoundError):
+        await game_engine.force_finish_game(uuid4())
