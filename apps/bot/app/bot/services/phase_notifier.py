@@ -59,7 +59,7 @@ class TelegramGameNotifier:
                 await self._clear_player_game_mappings(new_state)
             return
 
-        # Send day vote result summary if we just left VOTING phase
+        # Clean up voting UI and send day vote result if we just left VOTING phase.
         await self._cleanup_voting_panel_if_needed(old_state, new_state)
         await self._send_day_vote_result_if_needed(old_state, new_state)
 

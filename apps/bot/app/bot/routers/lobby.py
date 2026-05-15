@@ -67,7 +67,7 @@ async def _ensure_can_manage_game(
 async def cmd_game(message: types.Message, container: Container) -> None:
     """Handles /game command to create a lobby."""
     if not message.chat or message.chat.type not in ("group", "supergroup"):
-        await message.answer("Please use this command in a group chat.")
+        await message.answer("Эту команду нужно использовать в групповом чате.")
         return
 
     if not message.from_user:
@@ -110,7 +110,7 @@ async def cmd_game(message: types.Message, container: Container) -> None:
             state.lobby_message_id = sent.message_id
             await container.game_repository.save(state)
         except GameAlreadyExistsError:
-            await message.answer("An active game already exists in this chat!")
+            await message.answer("В этом чате уже есть активная игра.")
 
 
 @router.callback_query(F.data == LobbyCallback.JOIN.value)
@@ -129,7 +129,7 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
         if not callback.from_user:
             return
         await callback.answer(
-            "This lobby message is no longer available.",
+            "Это сообщение лобби больше недоступно.",
             show_alert=True,
         )
         return
@@ -140,14 +140,14 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
     )
 
     if not active_game_id:
-        await callback.answer("No active game found.", show_alert=True)
+        await callback.answer("Активная игра не найдена.", show_alert=True)
         return
 
     async with container.db.get_session() as session:
         user_repo = container.get_user_repository(session)
         user = await user_repo.get_by_telegram_id(callback.from_user.id)
         if not user:
-            await callback.answer("You are not in the game!", show_alert=True)
+            await callback.answer("Ты не участвуешь в этой игре.", show_alert=True)
             return
 
     try:
@@ -168,13 +168,13 @@ async def handle_leave(callback: types.CallbackQuery, container: Container) -> N
             reply_markup=build_lobby_keyboard(invite_url),
             parse_mode="HTML",
         )
-        await callback.answer("You left the game.")
+        await callback.answer("Ты вышел из игры.")
     except PlayerNotInGameError:
-        await callback.answer("You are not in the game!", show_alert=True)
+        await callback.answer("Ты не участвуешь в этой игре.", show_alert=True)
     except InvalidGamePhaseError:
-        await callback.answer("You can only leave during lobby phase!", show_alert=True)
+        await callback.answer("Выйти можно только до начала игры.", show_alert=True)
     except GameNotFoundError:
-        await callback.answer("Game not found.", show_alert=True)
+        await callback.answer("Игра не найдена.", show_alert=True)
 
 
 @router.callback_query(F.data == LobbyCallback.CANCEL.value)
@@ -182,7 +182,7 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
     message = _get_callback_message(callback)
     if message is None:
         await callback.answer(
-            "This lobby message is no longer available.",
+            "Это сообщение лобби больше недоступно.",
             show_alert=True,
         )
         return
@@ -194,7 +194,7 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
     )
 
     if not active_game_id:
-        await callback.answer("No active game found.", show_alert=True)
+        await callback.answer("Активная игра не найдена.", show_alert=True)
         return
 
     state = await container.game_repository.get(active_game_id)
@@ -217,8 +217,8 @@ async def handle_cancel(callback: types.CallbackQuery, container: Container) -> 
     await container.game_invite_repository.delete_by_game_id(active_game_id)
 
     await container.game_engine.cancel_game(active_game_id)
-    await message.edit_text("🚫 Game canceled.")
-    await callback.answer("Game canceled.")
+    await message.edit_text("🚫 Лобби отменено.")
+    await callback.answer("Лобби отменено.")
 
 
 @router.callback_query(F.data == LobbyCallback.START.value)
@@ -226,7 +226,7 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
     message = _get_callback_message(callback)
     if message is None:
         await callback.answer(
-            "This lobby message is no longer available.",
+            "Это сообщение лобби больше недоступно.",
             show_alert=True,
         )
         return
@@ -267,7 +267,7 @@ async def handle_start(callback: types.CallbackQuery, container: Container) -> N
 
     bot = callback.bot
     if bot is None:
-        await callback.answer("Bot instance unavailable.", show_alert=True)
+        await callback.answer("Бот временно недоступен.", show_alert=True)
         return
 
     try:
