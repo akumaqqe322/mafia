@@ -886,8 +886,11 @@ def test_day_vote_callback_parse_invalid() -> None:
     assert DayVoteCallback.parse("dv:abc") is None
     assert DayVoteCallback.parse("dv:5:abc") is None
     assert DayVoteCallback.parse("dv:x:123") is None
-    assert DayVoteCallback.parse("dv:123") is None  # Missing version part (old format)
     assert DayVoteCallback.parse("na:kill:123") is None
+
+
+def test_day_vote_callback_parse_rejects_old_format() -> None:
+    assert DayVoteCallback.parse("dv:123") is None
 
 
 def test_day_vote_callback_size_safe() -> None:
