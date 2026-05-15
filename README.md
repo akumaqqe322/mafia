@@ -36,15 +36,12 @@ QA-чеклист для ручного тестирования бота дос
 ## 4. Быстрый запуск через Docker Compose
 
 1. Получите `BOT_TOKEN` у @BotFather.
-2. Создайте файл `infra/.env`:
-   ```env
-   BOT_TOKEN=ваш_токен_здесь
-   DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/mafia_db
-   REDIS_URL=redis://redis:6379/0
-   ENVIRONMENT=development
-   LOG_LEVEL=INFO
+2. Создайте файл конфигурации:
+   ```bash
+   cp infra/.env.example infra/.env
    ```
-3. Запустите сборку и старт:
+3. Отредактируйте `infra/.env`, указав ваш `BOT_TOKEN`.
+4. Запустите сборку и старт:
    ```bash
    cd infra
    docker compose up --build
@@ -67,7 +64,12 @@ QA-чеклист для ручного тестирования бота дос
    ```bash
    pip install -e ".[dev]"
    ```
-4. Настройте переменные окружения в вашей оболочке (export/set) и запустите бота:
+4. Настройте файл конфигурации:
+   ```bash
+   cp .env.example .env
+   ```
+5. Отредактируйте `.env`, указав ваш `BOT_TOKEN`.
+6. Запустите бота:
    ```bash
    python -m app.main
    ```
