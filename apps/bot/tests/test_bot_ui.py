@@ -7,7 +7,11 @@ import pytest
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 
-from app.bot.callbacks import DayVoteCallback, LobbyCallback, NightActionCallback
+from app.bot.callbacks import AdminAction, AdminCallback, DayVoteCallback, LobbyCallback, NightActionCallback
+from app.bot.keyboards.admin_panel import (
+    build_admin_kick_keyboard,
+    build_admin_panel_keyboard,
+)
 from app.bot.keyboards.day_vote import build_day_vote_keyboard, get_available_day_vote_targets
 from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.keyboards.night_action import (
@@ -15,6 +19,7 @@ from app.bot.keyboards.night_action import (
     get_available_night_targets,
 )
 from app.bot.presets import select_preset_for_players
+from app.bot.renderers.admin_panel import render_admin_kick_panel, render_admin_panel
 from app.bot.renderers.check_result import render_check_result
 from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.day_vote_result import render_day_vote_result
@@ -1349,3 +1354,148 @@ def test_render_check_result_does_not_reveal_ids_or_roles() -> None:
     assert str(state.chat_id) not in text
     # Ensure role ID value is not leaked
     assert RoleId.MAFIA.value not in text.lower()
+
+
+def test_admin_callback_pack_refresh() -> None:
+    cb = AdminCallback(action=AdminAction.REFRESH)
+    assert cb.pack() == "adm:refresh"
+
+
+def test_admin_callback_pack_tick() -> None:
+    cb = AdminCallback(action=AdminAction.TICK, version=12)
+    assert cb.pack() == "adm:tick:12"
+
+
+def test_admin_callback_pack_finish() -> None:
+    cb = AdminCallback(action=AdminAction.FINISH, version=12)
+    assert cb.pack() == "adm:finish:12"
+
+
+def test_admin_callback_pack_kick_list() -> None:
+    cb = AdminCallback(action=AdminAction.KICK_LIST, version=12)
+    assert cb.pack() == "adm:klist:12"
+
+
+def test_admin_callback_pack_kick() -> None:
+    cb = AdminCallback(action=AdminAction.KICK, version=12, target_telegram_id=123)
+    assert cb.pack() == "adm:kick:12:123"
+
+
+def test_admin_callback_parse_valid() -> None:
+    assert AdminCallback.parse("adm:refresh").action == AdminAction.REFRESH
+    assert AdminCallback.parse("adm:tick:12").version == 12
+    assert AdminCallback.parse("adm:kick:12:123").target_telegram_id == 123
+
+
+def test_admin_callback_parse_invalid() -> None:
+    assert AdminCallback.parse("") is None
+    assert AdminCallback.parse("wrong") is None
+    assert AdminCallback.parse("adm:unknown") is None
+    assert AdminCallback.parse("adm:tick") is None
+    assert AdminCallback.parse("adm:tick:x") is None
+    assert AdminCallback.parse("adm:kick:12") is None
+    assert AdminCallback.parse("adm:kick:12:x") is None
+
+
+def test_admin_callback_size_safe() -> None:
+    cb = AdminCallback(
+        action=AdminAction.KICK,
+        version=999999,
+        target_telegram_id=999999999999,
+    )
+    assert len(cb.pack()) < 64
+
+
+def test_render_admin_panel_no_active_game() -> None:
+    text = render_admin_panel(None)
+    assert "Активная игра не найдена" in text
+
+
+def test_render_admin_panel_active_game() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        version=42,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(user_id=uuid4(), telegram_id=1, display_name="Alice", is_alive=True),
+            PlayerState(user_id=uuid4(), telegram_id=2, display_name="Bob", is_alive=False),
+        ],
+    )
+    text = render_admin_panel(state)
+    assert "Фаза: <b>night</b>" in text
+    assert "v42" in text
+    assert "1 живых / 2 всего" in text
+
+
+def test_render_admin_kick_panel() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.LOBBY,
+        version=1,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert "В лобби пока нет игроков" in render_admin_kick_panel(state)
+
+    state.players.append(PlayerState(user_id=uuid4(), telegram_id=1, display_name="Alice"))
+    assert "Выберите игрока" in render_admin_kick_panel(state)
+
+
+def test_build_admin_panel_keyboard_no_active_game() -> None:
+    kb = build_admin_panel_keyboard(None)
+    assert len(kb.inline_keyboard) == 1
+    assert kb.inline_keyboard[0][0].text == "🔄 Обновить"
+
+
+def test_build_admin_panel_keyboard_lobby() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.LOBBY,
+        version=1,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    kb = build_admin_panel_keyboard(state)
+    texts = [b.text for row in kb.inline_keyboard for b in row]
+    assert "🔄 Обновить" in texts
+    assert "👥 Игроки / кик" in texts
+
+
+def test_build_admin_panel_keyboard_active_phase() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        version=5,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    kb = build_admin_panel_keyboard(state)
+    texts = [b.text for row in kb.inline_keyboard for b in row]
+    assert "🔄 Обновить" in texts
+    assert "⏭ Завершить фазу" in texts
+    assert "🚫 Завершить игру" in texts
+
+
+def test_build_admin_kick_keyboard() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.LOBBY,
+        version=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(user_id=uuid4(), telegram_id=123, display_name="Alice"),
+        ],
+    )
+    kb = build_admin_kick_keyboard(state)
+    buttons = [b for row in kb.inline_keyboard for b in row]
+    assert any(b.text == "Alice" for b in buttons)
+    assert any(b.callback_data == "adm:kick:1:123" for b in buttons if b.callback_data)
+    assert any(b.text == "◀️ Назад" for b in buttons)
