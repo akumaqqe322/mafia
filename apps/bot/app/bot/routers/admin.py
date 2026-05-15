@@ -14,9 +14,11 @@ from app.bot.renderers.admin_panel import (
     render_admin_panel,
 )
 from app.bot.renderers.lobby import render_lobby
+from app.bot.services.game_tick import GameTickService
 from app.bot.services.permissions import is_group_admin
 from app.bot.utils import build_join_url
 from app.core.game.engine import (
+    GameEngineException,
     GameNotFoundError,
     InvalidGamePhaseError,
     PlayerNotInGameError,
@@ -121,6 +123,7 @@ async def handle_admin_callback(
     callback: types.CallbackQuery,
     container: Container,
     bot: Bot,
+    game_tick_service: GameTickService,
 ) -> None:
     if not callback.from_user:
         return
@@ -187,6 +190,64 @@ async def handle_admin_callback(
             reply_markup=build_admin_kick_keyboard(state),
         )
         await callback.answer("Выберите игрока.", show_alert=False)
+        return
+
+    if parsed.action == AdminAction.TICK:
+        if state is None:
+            await message.edit_text(
+                render_admin_panel(None),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(None),
+            )
+            await callback.answer("Активная игра не найдена.", show_alert=True)
+            return
+
+        if state.phase == GamePhase.LOBBY:
+            await callback.answer(
+                "Нельзя завершить фазу лобби. Запустите игру обычной кнопкой Start.",
+                show_alert=True,
+            )
+            return
+
+        if state.phase == GamePhase.FINISHED:
+            await callback.answer(
+                "Игра уже завершена.",
+                show_alert=True,
+            )
+            return
+
+        if parsed.version != state.version:
+            await callback.answer(
+                "Панель устарела. Обновите /admin_game.",
+                show_alert=True,
+            )
+            return
+
+        active_game_id = await container.active_game_registry.get_active_game_by_chat(
+            message.chat.id
+        )
+        if not active_game_id:
+            await callback.answer("Активная игра не найдена.", show_alert=True)
+            return
+
+        try:
+            new_state = await game_tick_service.advance_game(active_game_id)
+
+            if new_state is None:
+                await callback.answer("Игра не найдена.", show_alert=True)
+                return
+
+            await message.edit_text(
+                render_admin_panel(new_state),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(new_state),
+            )
+            await callback.answer("Фаза завершена.", show_alert=False)
+        except GameEngineException:
+            await callback.answer(
+                "Не удалось завершить фазу.",
+                show_alert=True,
+            )
         return
 
     if parsed.action == AdminAction.KICK:
@@ -267,7 +328,7 @@ async def handle_admin_callback(
         )
         return
 
-    # Phase control actions are intentionally disabled in this MVP step.
+    # Emergency finish remains intentionally disabled in this MVP step.
     await callback.answer(
         "Это действие пока недоступно.",
         show_alert=True,
