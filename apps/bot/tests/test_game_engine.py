@@ -1532,11 +1532,8 @@ async def test_force_finish_game_success(game_engine: GameEngine) -> None:
     await game_engine.create_game(game_id, uuid4(), tg_chat_id)
 
     # Join 5 players
-    players: list[UUID] = []
     for i in range(5):
-        uid = uuid4()
-        players.append(uid)
-        await game_engine.join_game(game_id, uid, 1000 + i, f"P{i}")
+        await game_engine.join_game(game_id, uuid4(), 1000 + i, f"P{i}")
 
     # Start game to move to active phase (NIGHT)
     state = await game_engine.start_game(game_id, "classic_5_6")
