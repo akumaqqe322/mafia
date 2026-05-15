@@ -1,36 +1,135 @@
-# Mafia Platform Monorepo
+# Telegram Mafia Platform
 
-This repository contains the full stack for the Telegram Mafia platform.
+Данный репозиторий представляет собой monorepo для платформы игры в Мафию через Telegram. Основной рабочий интерфейс на текущий момент — Telegram-бот. Веб-панель администратора (web-admin) присутствует в структуре проекта, но её функционал находится в стадии MVP и вторичен по отношению к боту.
 
-## Structure
+QA-чеклист для ручного тестирования бота доступен в [docs/QA_README.md](docs/QA_README.md).
 
-- `apps/web-admin`: Next.js-based administrative dashboard.
-- `apps/bot`: Python-based Telegram bot service (aiogram 3).
-- `infra`: Infrastructure configurations including Docker Compose, PostgreSQL, and Redis.
-- `docs`: Architecture and design documentation.
+## 1. Структура проекта
 
-## Running the Web Admin
+- **apps/bot**: Сервис Telegram-бота на Python (aiogram 3).
+- **apps/web-admin**: Панель администратора на Next.js.
+- **infra**: Конфигурации инфраструктуры (Docker Compose, PostgreSQL, Redis).
+- **docs**: Техническая документация и QA-инструкции.
 
-The Web Admin is the primary interface for this AI Studio environment. It is configured as the default workspace and runs on port 3000.
+## 2. Требования
 
-To start the development server:
-```bash
-npm run dev
-```
+Для запуска и разработки вам понадобятся:
+- **Node.js 20+** и **npm**
+- **Python 3.12+**
+- **Docker** и **Docker Compose**
+- **Telegram Bot Token** (получается у @BotFather)
 
-## Running the Bot
+## 3. Переменные окружения
 
-The bot is a Python service. In a local environment, you would use:
-```bash
-cd apps/bot
-pip install .
-python -m app.main
-```
+Перед запуском необходимо настроить следующие переменные:
 
-## Infrastructure
+| Переменная | Описание | Пример / Дефолт (Docker) |
+| :--- | :--- | :--- |
+| `BOT_TOKEN` | Токен вашего бота из BotFather | `123456789:ABCDE...` |
+| `DATABASE_URL` | URL подключения к PostgreSQL | `postgresql+asyncpg://user:password@postgres:5432/mafia_db` |
+| `REDIS_URL` | URL подключения к Redis | `redis://redis:6379/0` |
+| `ENVIRONMENT` | Среда запуска | `development` / `production` |
+| `LOG_LEVEL` | Уровень логирования | `INFO` / `DEBUG` |
 
-Use Docker Compose in the `infra` directory to start supporting services:
-```bash
-cd infra
-docker-compose up -d
-```
+**Важно:** Не коммитьте реальные токены в репозиторий. Для Docker Compose используйте файл `.env` в папке `infra/`.
+
+## 4. Быстрый запуск через Docker Compose
+
+1. Получите `BOT_TOKEN` у @BotFather.
+2. Создайте файл `infra/.env`:
+   ```env
+   BOT_TOKEN=ваш_токен_здесь
+   DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/mafia_db
+   REDIS_URL=redis://redis:6379/0
+   ENVIRONMENT=development
+   LOG_LEVEL=INFO
+   ```
+3. Запустите сборку и старт:
+   ```bash
+   cd infra
+   docker compose up --build
+   ```
+4. Проверьте доступность:
+   - Бот должен начать реагировать на сообщения (если токен верный).
+   - Веб-админка (заглушка) доступна на `http://localhost:3000`.
+
+## 5. Локальная разработка — Бот (apps/bot)
+
+1. Перейдите в папку бота и создайте виртуальное окружение:
+   ```bash
+   cd apps/bot
+   python -m venv .venv
+   ```
+2. Активируйте окружение:
+   - Windows: `.venv\Scripts\activate`
+   - Linux/macOS: `source .venv/bin/activate`
+3. Установите зависимости в режиме редактирования:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+4. Настройте переменные окружения в вашей оболочке (export/set) и запустите бота:
+   ```bash
+   python -m app.main
+   ```
+5. Команды проверки качества:
+   ```bash
+   pytest        # Запуск тестов
+   ruff check .  # Линтинг
+   mypy .        # Проверка типов
+   ```
+*Примечание: Если требуются миграции БД, используйте Alembic в папке `apps/bot`.*
+
+## 6. Локальная разработка — Web Admin (apps/web-admin)
+
+Из корня репозитория:
+1. Установите зависимости:
+   ```bash
+   npm install
+   ```
+2. Запустите режим разработки:
+   ```bash
+   npm run dev
+   ```
+3. Откройте `http://localhost:3000`.
+
+## 7. Настройка Telegram
+
+1. Создайте бота через @BotFather.
+2. Добавьте бота в Telegram-группу (или супергруппу).
+3. Дайте боту права на отправку и редактирование сообщений.
+4. **Важно:** Каждый игрок должен сначала написать боту в ЛС и нажать /start, чтобы бот мог присылать приватные уведомления (роли, меню действий).
+5. Используйте `/game` в группе для создания лобби.
+
+## 8. Основной игровой цикл
+
+- **/game**: Создать лобби в группе.
+- Игроки вступают через кнопку в группе (переход в ЛС).
+- Создатель или админ группы запускает игру.
+- Фазы: Ночь (действия в ЛС) -> День (обсуждение) -> Голосование.
+- Финал: Итоговый отчет с раскрытием ролей.
+
+**Панель администратора (/admin_game):**
+- Доступна только администраторам и владельцу группы.
+- Функции: Обновление статуса, Исключение (Kick) из лобби, Принудительный пропуск фазы (Tick), Принудительное завершение игры (Finish).
+
+## 9. Ручное тестирование (QA)
+
+Подробный чеклист сценариев проверки находится в [docs/QA_README.md](docs/QA_README.md). Рекомендуется проходить его перед каждым релизом.
+
+## 10. Устранение неполадок (Troubleshooting)
+
+- **Бот не отвечает в группе**: Проверьте `BOT_TOKEN` и наличие бота в чате. Убедитесь, что у него есть права на отправку сообщений.
+- **Игроки не получают роли**: Игрок обязан сначала начать диалог с ботом в ЛС. Проверьте логи на наличие ошибок "Forbidden: bot was blocked by the user".
+- **Ошибка подключения к БД/Redis**: Проверьте правильность URL в переменных окружения и запущены ли соответствующие контейнеры/сервисы.
+- **Панель администратора не открывается**: Убедитесь, что вы являетесь администратором группы в Telegram и используете команду в чате группы, а не в ЛС.
+
+## 11. Известные ограничения
+
+- Веб-панель (web-admin) находится в зачаточном состоянии и не является основным инструментом управления.
+- Отсутствует детальный лог действий администраторов (кто именно нажал кнопку).
+- Нельзя исключить (kick) игрока из уже запущенной игры через админку (только из лобби).
+- Интеграционные тесты для Telegram-хендлеров ограничены из-за сложности эмуляции API Telegram.
+
+## 12. Полезные ссылки
+
+- [docs/QA_README.md](docs/QA_README.md) — Чеклист для ручного тестирования.
