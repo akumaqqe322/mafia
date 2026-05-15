@@ -541,9 +541,17 @@ def test_render_game_finished_shows_winner_side() -> None:
 
 def test_render_game_finished_lists_alive_and_dead_players() -> None:
     u1, u2 = uuid4(), uuid4()
-    p1 = make_player(role=RoleId.CIVILIAN.value, display_name="Alice", is_alive=True)
+    p1 = make_player(
+        role=RoleId.CIVILIAN.value,
+        display_name="Alice",
+        is_alive=True,
+    )
     p1.user_id = u1
-    p2 = make_player(role=RoleId.MAFIA.value, display_name="Bob", is_alive=False)
+    p2 = make_player(
+        role=RoleId.MAFIA.value,
+        display_name="Bob",
+        is_alive=False,
+    )
     p2.user_id = u2
 
     state = GameState(
@@ -563,8 +571,16 @@ def test_render_game_finished_lists_alive_and_dead_players() -> None:
 
 
 def test_render_game_finished_reveals_roles_after_finish() -> None:
-    p1 = make_player(role=RoleId.SHERIFF.value, display_name="Alice", is_alive=True)
-    p2 = make_player(role=RoleId.MAFIA.value, display_name="Bob", is_alive=False)
+    p1 = make_player(
+        role=RoleId.SHERIFF.value,
+        display_name="Alice",
+        is_alive=True,
+    )
+    p2 = make_player(
+        role=RoleId.MAFIA.value,
+        display_name="Bob",
+        is_alive=False,
+    )
 
     state = GameState(
         game_id=uuid4(),
@@ -576,13 +592,16 @@ def test_render_game_finished_reveals_roles_after_finish() -> None:
     )
 
     output = render_game_finished(state)
-    # Check for role names (assuming standard names in RoleId/RoleRegistry)
     assert "Шериф" in output
     assert "Мафия" in output
 
 
 def test_render_game_finished_handles_empty_sections() -> None:
-    p1 = make_player(role=RoleId.CIVILIAN.value, display_name="Alice", is_alive=True)
+    p1 = make_player(
+        role=RoleId.CIVILIAN.value,
+        display_name="Alice",
+        is_alive=True,
+    )
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
