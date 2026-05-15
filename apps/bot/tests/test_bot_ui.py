@@ -15,6 +15,7 @@ from app.bot.callbacks import (
     NightActionCallback,
 )
 from app.bot.keyboards.admin_panel import (
+    build_admin_finish_confirmation_keyboard,
     build_admin_kick_keyboard,
     build_admin_panel_keyboard,
 )
@@ -25,7 +26,11 @@ from app.bot.keyboards.night_action import (
     get_available_night_targets,
 )
 from app.bot.presets import select_preset_for_players
-from app.bot.renderers.admin_panel import render_admin_kick_panel, render_admin_panel
+from app.bot.renderers.admin_panel import (
+    render_admin_finish_confirmation,
+    render_admin_kick_panel,
+    render_admin_panel,
+)
 from app.bot.renderers.check_result import render_check_result
 from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.day_vote_result import render_day_vote_result
@@ -1377,6 +1382,11 @@ def test_admin_callback_pack_finish() -> None:
     assert cb.pack() == "adm:finish:12"
 
 
+def test_admin_callback_pack_confirm_finish() -> None:
+    cb = AdminCallback(action=AdminAction.CONFIRM_FINISH, version=12)
+    assert cb.pack() == "adm:confirm_finish:12"
+
+
 def test_admin_callback_pack_kick_list() -> None:
     cb = AdminCallback(action=AdminAction.KICK_LIST, version=12)
     assert cb.pack() == "adm:klist:12"
@@ -1396,6 +1406,11 @@ def test_admin_callback_parse_valid() -> None:
     assert parsed is not None
     assert parsed.version == 12
 
+    parsed = AdminCallback.parse("adm:confirm_finish:12")
+    assert parsed is not None
+    assert parsed.action == AdminAction.CONFIRM_FINISH
+    assert parsed.version == 12
+
     parsed = AdminCallback.parse("adm:kick:12:123")
     assert parsed is not None
     assert parsed.target_telegram_id == 123
@@ -1408,6 +1423,8 @@ def test_admin_callback_parse_invalid() -> None:
     assert AdminCallback.parse("adm:tick") is None
     assert AdminCallback.parse("adm:tick:x") is None
     assert AdminCallback.parse("adm:finish") is None
+    assert AdminCallback.parse("adm:confirm_finish") is None
+    assert AdminCallback.parse("adm:confirm_finish:x") is None
     assert AdminCallback.parse("adm:klist") is None
     assert AdminCallback.parse("adm:kick:12") is None
     assert AdminCallback.parse("adm:kick:x:123") is None
@@ -1492,6 +1509,48 @@ def test_render_admin_kick_panel() -> None:
     assert "Выберите игрока" in render_admin_kick_panel(state)
 
 
+def test_render_admin_finish_confirmation() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        version=42,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    text = render_admin_finish_confirmation(state)
+    assert "Подтвердите остановку игры" in text
+    assert "финальный отчёт" in text
+    assert "night" in text
+    assert "v42" in text
+
+
+def test_render_admin_finish_confirmation_does_not_reveal_roles_or_ids() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        version=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=uuid4(),
+                telegram_id=123,
+                display_name="Alice",
+                role=RoleId.MAFIA.value,
+                is_alive=True,
+            ),
+        ],
+    )
+    text = render_admin_finish_confirmation(state)
+    assert "Мафия" not in text
+    assert RoleId.MAFIA.value not in text
+    assert str(state.players[0].user_id) not in text
+    assert str(state.game_id) not in text
+    assert str(state.chat_id) not in text
+
+
 def test_build_admin_panel_keyboard_no_active_game() -> None:
     kb = build_admin_panel_keyboard(None)
     assert len(kb.inline_keyboard) == 1
@@ -1546,3 +1605,20 @@ def test_build_admin_kick_keyboard() -> None:
     assert any(b.text == "Alice" for b in buttons)
     assert any(b.callback_data == "adm:kick:1:123" for b in buttons if b.callback_data)
     assert any(b.text == "◀️ Назад" for b in buttons)
+
+
+def test_build_admin_finish_confirmation_keyboard() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        version=42,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    kb = build_admin_finish_confirmation_keyboard(state)
+    buttons = [b for row in kb.inline_keyboard for b in row]
+    assert any(b.text == "⚠️ Да, остановить игру" for b in buttons)
+    assert any(b.callback_data == "adm:confirm_finish:42" for b in buttons)
+    assert any(b.text == "◀️ Назад" for b in buttons)
+    assert any(b.callback_data == "adm:back" for b in buttons)

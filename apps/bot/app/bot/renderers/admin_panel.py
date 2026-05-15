@@ -27,3 +27,17 @@ def render_admin_kick_panel(state: GameState) -> str:
         return f"{header}В лобби пока нет игроков."
 
     return f"{header}Выберите игрока, которого нужно удалить из лобби."
+
+
+def render_admin_finish_confirmation(state: GameState) -> str:
+    """Renders the force finish confirmation screen."""
+    header = "⚠️ <b>Подтвердите остановку игры</b>\n\n"
+
+    return (
+        f"{header}"
+        f"Это действие немедленно завершит текущую партию.\n"
+        f"Игрокам будет отправлен финальный отчёт с раскрытием ролей.\n\n"
+        f"Фаза: <b>{state.phase.value}</b>\n"
+        f"Версия: <b>v{state.version}</b>\n\n"
+        f"<i>Отменить это действие нельзя.</i>"
+    )

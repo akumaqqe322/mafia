@@ -5,11 +5,13 @@ from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 
 from app.bot.callbacks import AdminAction, AdminCallback
 from app.bot.keyboards.admin_panel import (
+    build_admin_finish_confirmation_keyboard,
     build_admin_kick_keyboard,
     build_admin_panel_keyboard,
 )
 from app.bot.keyboards.lobby import build_lobby_keyboard
 from app.bot.renderers.admin_panel import (
+    render_admin_finish_confirmation,
     render_admin_kick_panel,
     render_admin_panel,
 )
@@ -251,6 +253,45 @@ async def handle_admin_callback(
         return
 
     if parsed.action == AdminAction.FINISH:
+        if state is None:
+            await message.edit_text(
+                render_admin_panel(None),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(None),
+            )
+            await callback.answer("Активная игра не найдена.", show_alert=True)
+            return
+
+        if state.phase == GamePhase.LOBBY:
+            await callback.answer(
+                "Лобби можно отменить через кнопку отмены.",
+                show_alert=True,
+            )
+            return
+
+        if state.phase == GamePhase.FINISHED:
+            await callback.answer(
+                "Игра уже завершена.",
+                show_alert=True,
+            )
+            return
+
+        if parsed.version != state.version:
+            await callback.answer(
+                "Панель устарела. Обновите /admin_game.",
+                show_alert=True,
+            )
+            return
+
+        await message.edit_text(
+            render_admin_finish_confirmation(state),
+            parse_mode="HTML",
+            reply_markup=build_admin_finish_confirmation_keyboard(state),
+        )
+        await callback.answer("Подтвердите остановку игры.", show_alert=False)
+        return
+
+    if parsed.action == AdminAction.CONFIRM_FINISH:
         if state is None:
             await message.edit_text(
                 render_admin_panel(None),

@@ -94,3 +94,25 @@ def build_admin_kick_keyboard(state: GameState) -> InlineKeyboardMarkup:
     ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def build_admin_finish_confirmation_keyboard(state: GameState) -> InlineKeyboardMarkup:
+    """Builds the force finish confirmation keyboard."""
+    buttons: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="⚠️ Да, остановить игру",
+                callback_data=AdminCallback(
+                    action=AdminAction.CONFIRM_FINISH,
+                    version=state.version,
+                ).pack(),
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="◀️ Назад",
+                callback_data=AdminCallback(action=AdminAction.BACK).pack(),
+            )
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
