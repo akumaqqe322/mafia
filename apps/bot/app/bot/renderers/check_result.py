@@ -36,6 +36,6 @@ def render_check_result(state: GameState, event: GameEvent) -> str | None:
     header = "🔎 <b>Результат проверки</b>\n\n"
 
     if is_mafia:
-        return f"{header}Игрок <b>{target_name}</b> связан с мафией."
-    else:
-        return f"{header}Игрок <b>{target_name}</b> не связан с мафией."
+        return f"{header}Ваши подозрения подтвердились: <b>{target_name}</b> связан с мафией."
+
+    return f"{header}След не ведёт к мафии: <b>{target_name}</b> не связан с мафией."

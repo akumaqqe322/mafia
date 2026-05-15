@@ -44,7 +44,7 @@ def render_day_vote_result(state: GameState) -> str | None:
         name = _find_player_name(state, vote_event.target_user_id)
         votes_count = vote_event.payload.get("votes_count")
 
-        text = f"{header}Город сделал выбор: <b>{name}</b>.\nИгрок покидает игру."
+        text = f"{header}Город вынес решение: <b>{name}</b> покидает игру."
         if type(votes_count) is int:
             text += f"\n\nГолосов: {votes_count}"
         return text
@@ -58,7 +58,7 @@ def render_day_vote_result(state: GameState) -> str | None:
 
         text = (
             f"{header}Голоса разделились между: <b>{candidates_text}</b>.\n"
-            "Сегодня никто не покинул город."
+            "Единого решения нет — сегодня никто не покинул город."
         )
         if type(votes_count) is int:
             text += f"\n\nГолосов у лидеров: {votes_count}"
@@ -67,7 +67,7 @@ def render_day_vote_result(state: GameState) -> str | None:
     if vote_event.type == GameEventType.DAY_VOTE_NO_VOTES:
         return (
             f"{header}Город так и не пришёл к решению.\n"
-            "Сегодня никто не покинул город."
+            "Без голосов никто не покидает игру."
         )
 
     return None

@@ -1051,6 +1051,7 @@ def test_render_day_vote_result_executed() -> None:
     text = render_day_vote_result(state)
     assert text is not None
     assert "Голосование завершено" in text
+    assert "Город вынес решение" in text
     assert "Alice" in text
     assert "покидает игру" in text
     assert "Голосов: 3" in text
@@ -1087,6 +1088,7 @@ def test_render_day_vote_result_tie() -> None:
     assert "Голоса разделились между" in text
     assert "Alice" in text
     assert "Bob" in text
+    assert "Единого решения нет" in text
     assert "никто не покинул город" in text
     assert "Голосов у лидеров: 2" in text
 
@@ -1108,7 +1110,7 @@ def test_render_day_vote_result_no_votes() -> None:
     text = render_day_vote_result(state)
     assert text is not None
     assert "так и не пришёл к решению" in text
-    assert "никто не покинул город" in text
+    assert "Без голосов никто не покидает игру" in text
 
 
 def test_render_day_vote_result_returns_none_without_vote_event() -> None:
@@ -1199,6 +1201,7 @@ def test_render_check_result_mafia_positive() -> None:
     text = render_check_result(state, event)
     assert text is not None
     assert "Результат проверки" in text
+    assert "Ваши подозрения подтвердились" in text
     assert "Alice" in text
     assert "связан с мафией" in text
     # Safety: do not reveal exact role
@@ -1227,6 +1230,7 @@ def test_render_check_result_mafia_negative() -> None:
 
     text = render_check_result(state, event)
     assert text is not None
+    assert "След не ведёт к мафии" in text
     assert "не связан с мафией" in text
     assert "Bob" in text
 
