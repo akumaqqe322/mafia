@@ -15,6 +15,7 @@ from app.bot.keyboards.night_action import (
     get_available_night_targets,
 )
 from app.bot.presets import select_preset_for_players
+from app.bot.renderers.check_result import render_check_result
 from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.day_vote_result import render_day_vote_result
 from app.bot.renderers.game import render_game_started
@@ -998,3 +999,174 @@ def test_render_day_vote_result_does_not_reveal_ids() -> None:
     assert str(target_id) not in text
     assert str(state.game_id) not in text
     assert str(state.chat_id) not in text
+
+
+def test_render_check_result_mafia_positive() -> None:
+    target_id = uuid4()
+    p_target = make_player(role=RoleId.MAFIA.value, display_name="Alice")
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PRIVATE,
+        target_user_id=target_id,
+        payload={"is_mafia": True, "target_role": RoleId.MAFIA.value},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+    )
+
+    text = render_check_result(state, event)
+    assert text is not None
+    assert "Результат проверки" in text
+    assert "Alice" in text
+    assert "связан с мафией" in text
+    # Safety: do not reveal exact role
+    assert RoleId.MAFIA.value not in text.lower()
+
+
+def test_render_check_result_mafia_negative() -> None:
+    target_id = uuid4()
+    p_target = make_player(role=RoleId.CIVILIAN.value, display_name="Bob")
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PRIVATE,
+        target_user_id=target_id,
+        payload={"is_mafia": False, "target_role": RoleId.CIVILIAN.value},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+    )
+
+    text = render_check_result(state, event)
+    assert text is not None
+    assert "не связан с мафией" in text
+    assert "Bob" in text
+
+
+def test_render_check_result_returns_none_for_non_check_event() -> None:
+    event = GameEvent(
+        type=GameEventType.DAY_VOTE_NO_VOTES,
+        visibility=EventVisibility.PUBLIC,
+    )
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert render_check_result(state, event) is None
+
+
+def test_render_check_result_returns_none_for_public_event() -> None:
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PUBLIC,
+        target_user_id=uuid4(),
+        payload={"is_mafia": True},
+    )
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert render_check_result(state, event) is None
+
+
+def test_render_check_result_returns_none_without_target() -> None:
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PRIVATE,
+        payload={"is_mafia": True},
+    )
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert render_check_result(state, event) is None
+
+
+def test_render_check_result_returns_none_with_invalid_payload() -> None:
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PRIVATE,
+        target_user_id=uuid4(),
+        payload={"is_mafia": "yes"},
+    )
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert render_check_result(state, event) is None
+
+
+def test_render_check_result_escapes_player_name() -> None:
+    target_id = uuid4()
+    p_target = make_player(None, display_name="<script>Alice</script>")
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PRIVATE,
+        target_user_id=target_id,
+        payload={"is_mafia": False},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+    )
+
+    text = render_check_result(state, event)
+    assert text is not None
+    assert "&lt;script&gt;Alice&lt;/script&gt;" in text
+    assert "<script>" not in text
+
+
+def test_render_check_result_does_not_reveal_ids_or_roles() -> None:
+    target_id = uuid4()
+    p_target = make_player(role=RoleId.MAFIA.value, display_name="Alice")
+    p_target.user_id = target_id
+
+    event = GameEvent(
+        type=GameEventType.CHECK_RESULT,
+        visibility=EventVisibility.PRIVATE,
+        target_user_id=target_id,
+        payload={"is_mafia": True, "target_role": RoleId.MAFIA.value},
+    )
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p_target],
+    )
+
+    text = render_check_result(state, event)
+    assert text is not None
+    assert str(target_id) not in text
+    assert str(state.game_id) not in text
+    assert str(state.chat_id) not in text
+    # Ensure role ID value is not leaked
+    assert RoleId.MAFIA.value not in text.lower()
