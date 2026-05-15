@@ -242,7 +242,7 @@ async def handle_admin_callback(
             await callback.answer(
                 "Кик игроков доступен только до начала игры.",
                 show_alert=True,
-                )
+            )
             return
         except GameNotFoundError:
             await callback.answer("Игра не найдена.", show_alert=True)
