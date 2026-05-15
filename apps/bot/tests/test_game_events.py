@@ -170,3 +170,49 @@ def test_game_state_backward_compatible_without_last_events() -> None:
     }
     state = GameState.model_validate(data)
     assert state.last_events == []
+
+
+def test_game_state_voting_message_id_default_none() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+    )
+    assert state.voting_message_id is None
+
+
+def test_game_state_accepts_voting_message_id() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        voting_message_id=456,
+    )
+    assert state.voting_message_id == 456
+
+
+def test_game_state_voting_message_id_serializes_to_json() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=123,
+        phase_started_at=datetime.now(timezone.utc),
+        voting_message_id=789,
+    )
+    dump = state.model_dump(mode="json")
+    assert dump["voting_message_id"] == 789
+
+
+def test_game_state_backward_compatible_without_voting_message_id() -> None:
+    data = {
+        "game_id": str(uuid4()),
+        "chat_id": str(uuid4()),
+        "telegram_chat_id": 111,
+        "phase": "lobby",
+        "phase_started_at": datetime.now(timezone.utc).isoformat(),
+        "version": 1,
+    }
+    state = GameState.model_validate(data)
+    assert state.voting_message_id is None

@@ -44,6 +44,7 @@ class GameState(BaseModel):
     settings: GameSettings = Field(default_factory=GameSettings)
     winner_side: str | None = None
     lobby_message_id: int | None = None
+    voting_message_id: int | None = None
     creator_telegram_id: int | None = None
     version: int = 1
     last_events: list[GameEvent] = Field(default_factory=list)
