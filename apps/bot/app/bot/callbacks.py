@@ -38,19 +38,24 @@ class NightActionCallback:
 
 @dataclass(frozen=True)
 class DayVoteCallback:
+    version: int
     target_telegram_id: int
 
     def pack(self) -> str:
-        return f"dv:{self.target_telegram_id}"
+        return f"dv:{self.version}:{self.target_telegram_id}"
 
     @classmethod
     def parse(cls, data: str) -> "DayVoteCallback | None":
         if not data.startswith("dv:"):
             return None
 
-        payload = data.removeprefix("dv:")
+        parts = data.split(":")
+        if len(parts) != 3:
+            return None
+
         try:
-            target_id = int(payload)
-            return cls(target_telegram_id=target_id)
+            version = int(parts[1])
+            target_id = int(parts[2])
+            return cls(version=version, target_telegram_id=target_id)
         except (ValueError, TypeError):
             return None

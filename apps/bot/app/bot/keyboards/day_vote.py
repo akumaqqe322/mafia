@@ -27,7 +27,10 @@ def build_day_vote_keyboard(
     # 2 buttons per row for better mobile UI
     row: list[InlineKeyboardButton] = []
     for player in targets:
-        callback_data = DayVoteCallback(target_telegram_id=player.telegram_id).pack()
+        callback_data = DayVoteCallback(
+            version=state.version,
+            target_telegram_id=player.telegram_id,
+        ).pack()
         button = InlineKeyboardButton(
             text=player.display_name,
             callback_data=callback_data,

@@ -870,25 +870,29 @@ async def test_can_manage_game_denied() -> None:
 
 
 def test_day_vote_callback_pack() -> None:
-    cb = DayVoteCallback(target_telegram_id=123)
-    assert cb.pack() == "dv:123"
+    cb = DayVoteCallback(version=5, target_telegram_id=123)
+    assert cb.pack() == "dv:5:123"
 
 
 def test_day_vote_callback_parse_valid() -> None:
-    cb = DayVoteCallback.parse("dv:123456")
+    cb = DayVoteCallback.parse("dv:5:123456")
     assert cb is not None
+    assert cb.version == 5
     assert cb.target_telegram_id == 123456
 
 
 def test_day_vote_callback_parse_invalid() -> None:
     assert DayVoteCallback.parse("invalid") is None
     assert DayVoteCallback.parse("dv:abc") is None
+    assert DayVoteCallback.parse("dv:5:abc") is None
+    assert DayVoteCallback.parse("dv:x:123") is None
+    assert DayVoteCallback.parse("dv:123") is None  # Missing version part (old format)
     assert DayVoteCallback.parse("na:kill:123") is None
 
 
 def test_day_vote_callback_size_safe() -> None:
     # 20 digits is max for 64-bit int
-    cb = DayVoteCallback(target_telegram_id=12345678901234567890)
+    cb = DayVoteCallback(version=123456789, target_telegram_id=12345678901234567890)
     assert len(cb.pack().encode("utf-8")) <= 64
 
 
@@ -931,7 +935,7 @@ def test_build_day_vote_keyboard_contains_alive_players() -> None:
     buttons = [b for row in kb.inline_keyboard for b in row]
     assert len(buttons) == 1
     assert buttons[0].text == "Alice"
-    assert buttons[0].callback_data == "dv:1"
+    assert buttons[0].callback_data == f"dv:{state.version}:1"
 
 
 def test_render_day_vote_started_contains_expected_text() -> None:

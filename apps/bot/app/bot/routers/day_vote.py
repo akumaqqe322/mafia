@@ -63,6 +63,13 @@ async def handle_day_vote(
         await callback.answer("Сейчас голосование недоступно.", show_alert=True)
         return
 
+    if parsed.version != state.version:
+        await callback.answer(
+            "Это голосование уже устарело. Используйте актуальную панель.",
+            show_alert=True,
+        )
+        return
+
     voter = next(
         (p for p in state.players if p.telegram_id == callback.from_user.id),
         None,
