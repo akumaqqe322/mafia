@@ -60,6 +60,7 @@ class TelegramGameNotifier:
             return
 
         # Send day vote result summary if we just left VOTING phase
+        await self._cleanup_voting_panel_if_needed(old_state, new_state)
         await self._send_day_vote_result_if_needed(old_state, new_state)
 
         # Send private check results (e.g. for Sheriff/Don) if any in last_events
@@ -152,6 +153,42 @@ class TelegramGameNotifier:
         text = render_day_vote_result(new_state)
         if text:
             await self._send_group_message(new_state, text)
+
+    async def _cleanup_voting_panel_if_needed(
+        self,
+        old_state: GameState | None,
+        new_state: GameState,
+    ) -> None:
+        """
+        Removes buttons from the old voting panel and updates its text.
+        Called when transitioning out of VOTING phase.
+        """
+        if old_state is None:
+            return
+        if old_state.phase != GamePhase.VOTING:
+            return
+        if new_state.phase == GamePhase.VOTING:
+            return
+
+        # Prefer message_id from new_state (it should be persisted across phases in GameState)
+        message_id = new_state.voting_message_id or old_state.voting_message_id
+        if not message_id:
+            return
+
+        try:
+            await self.bot.edit_message_text(
+                chat_id=new_state.telegram_chat_id,
+                message_id=message_id,
+                text=(
+                    "⚖️ <b>Голосование завершено.</b>\n\n"
+                    "Результат опубликован ниже."
+                ),
+                parse_mode="HTML",
+                reply_markup=None,
+            )
+        except (TelegramForbiddenError, TelegramAPIError):
+            # Message might be deleted or too old, ignore errors
+            return
 
     async def _send_voting_panel(self, state: GameState) -> None:
         """
