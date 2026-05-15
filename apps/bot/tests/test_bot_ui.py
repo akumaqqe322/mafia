@@ -80,8 +80,13 @@ def test_render_role_dm_contains_role_metadata() -> None:
 
 
 def test_role_registry_descriptions_are_polished() -> None:
-    assert "Мирный житель без ночного действия" in RoleRegistry.get(RoleId.CIVILIAN).description
-    assert "Представитель закона" in RoleRegistry.get(RoleId.SHERIFF).description
+    assert (
+        "Мирный житель без ночного действия"
+        in RoleRegistry.get(RoleId.CIVILIAN).description
+    )
+    assert (
+        "Представитель закона" in RoleRegistry.get(RoleId.SHERIFF).description
+    )
 
 
 def test_render_role_dm_contains_night_instruction() -> None:
