@@ -7,7 +7,13 @@ import pytest
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 
-from app.bot.callbacks import AdminAction, AdminCallback, DayVoteCallback, LobbyCallback, NightActionCallback
+from app.bot.callbacks import (
+    AdminAction,
+    AdminCallback,
+    DayVoteCallback,
+    LobbyCallback,
+    NightActionCallback,
+)
 from app.bot.keyboards.admin_panel import (
     build_admin_kick_keyboard,
     build_admin_panel_keyboard,
@@ -1382,9 +1388,17 @@ def test_admin_callback_pack_kick() -> None:
 
 
 def test_admin_callback_parse_valid() -> None:
-    assert AdminCallback.parse("adm:refresh").action == AdminAction.REFRESH
-    assert AdminCallback.parse("adm:tick:12").version == 12
-    assert AdminCallback.parse("adm:kick:12:123").target_telegram_id == 123
+    parsed = AdminCallback.parse("adm:refresh")
+    assert parsed is not None
+    assert parsed.action == AdminAction.REFRESH
+
+    parsed = AdminCallback.parse("adm:tick:12")
+    assert parsed is not None
+    assert parsed.version == 12
+
+    parsed = AdminCallback.parse("adm:kick:12:123")
+    assert parsed is not None
+    assert parsed.target_telegram_id == 123
 
 
 def test_admin_callback_parse_invalid() -> None:
@@ -1393,7 +1407,12 @@ def test_admin_callback_parse_invalid() -> None:
     assert AdminCallback.parse("adm:unknown") is None
     assert AdminCallback.parse("adm:tick") is None
     assert AdminCallback.parse("adm:tick:x") is None
+    assert AdminCallback.parse("adm:finish") is None
+    assert AdminCallback.parse("adm:klist") is None
     assert AdminCallback.parse("adm:kick:12") is None
+    assert AdminCallback.parse("adm:kick:x:123") is None
+    assert AdminCallback.parse("adm:kick:1:abc") is None
+    assert AdminCallback.parse("adm:kick:1:123:extra") is None
     assert AdminCallback.parse("adm:kick:12:x") is None
 
 
@@ -1403,7 +1422,7 @@ def test_admin_callback_size_safe() -> None:
         version=999999,
         target_telegram_id=999999999999,
     )
-    assert len(cb.pack()) < 64
+    assert len(cb.pack().encode("utf-8")) <= 64
 
 
 def test_render_admin_panel_no_active_game() -> None:
@@ -1428,6 +1447,34 @@ def test_render_admin_panel_active_game() -> None:
     assert "Фаза: <b>night</b>" in text
     assert "v42" in text
     assert "1 живых / 2 всего" in text
+
+
+def test_render_admin_panel_does_not_reveal_roles_or_ids() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase=GamePhase.NIGHT,
+        version=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[
+            PlayerState(
+                user_id=uuid4(),
+                telegram_id=123,
+                display_name="Alice",
+                role=RoleId.MAFIA.value,
+                is_alive=True,
+            ),
+        ],
+    )
+
+    text = render_admin_panel(state)
+
+    assert "Мафия" not in text
+    assert RoleId.MAFIA.value not in text
+    assert str(state.players[0].user_id) not in text
+    assert str(state.game_id) not in text
+    assert str(state.chat_id) not in text
 
 
 def test_render_admin_kick_panel() -> None:
