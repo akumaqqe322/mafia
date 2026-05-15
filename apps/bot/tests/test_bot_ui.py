@@ -1425,6 +1425,7 @@ def test_admin_callback_parse_invalid() -> None:
     assert AdminCallback.parse("adm:finish") is None
     assert AdminCallback.parse("adm:confirm_finish") is None
     assert AdminCallback.parse("adm:confirm_finish:x") is None
+    assert AdminCallback.parse("adm:confirm_finish:12:extra") is None
     assert AdminCallback.parse("adm:klist") is None
     assert AdminCallback.parse("adm:kick:12") is None
     assert AdminCallback.parse("adm:kick:x:123") is None

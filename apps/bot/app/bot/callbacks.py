@@ -112,7 +112,12 @@ class AdminCallback:
                 return None
             return cls(action=action)
 
-        if action in (AdminAction.TICK, AdminAction.FINISH, AdminAction.CONFIRM_FINISH, AdminAction.KICK_LIST):
+        if action in (
+            AdminAction.TICK,
+            AdminAction.FINISH,
+            AdminAction.CONFIRM_FINISH,
+            AdminAction.KICK_LIST,
+        ):
             if len(parts) != 3:
                 return None
             try:
