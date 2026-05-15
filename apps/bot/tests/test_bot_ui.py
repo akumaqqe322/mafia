@@ -79,10 +79,17 @@ def test_render_role_dm_contains_role_metadata() -> None:
     assert metadata.description in output
 
 
+def test_role_registry_descriptions_are_polished() -> None:
+    assert "Мирный житель без ночного действия" in RoleRegistry.get(RoleId.CIVILIAN).description
+    assert "Представитель закона" in RoleRegistry.get(RoleId.SHERIFF).description
+
+
 def test_render_role_dm_contains_night_instruction() -> None:
     output = render_role_dm(RoleId.DOCTOR)
-    assert "Сейчас ночь" in output
+    assert "Если у роли есть ночное действие" in output
+    assert "меню выбора" in output
     assert "Не раскрывай свою роль" in output
+    assert "до конца партии" in output
 
 
 def test_render_game_started_does_not_reveal_roles() -> None:

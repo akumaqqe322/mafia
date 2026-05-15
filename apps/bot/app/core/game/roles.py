@@ -59,7 +59,7 @@ class RoleRegistry:
             name="Мирный житель",
             emoji="👤",
             side=RoleSide.CIVILIAN,
-            description="Обычный гражданин, пытающийся вычислить мафию.",
+            description="Мирный житель без ночного действия. Твоя сила — обсуждение, внимательность и голосование.",
             available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.MAFIA: RoleMetadata(
@@ -67,7 +67,7 @@ class RoleRegistry:
             name="Мафия",
             emoji="🕵️‍♂️",
             side=RoleSide.MAFIA,
-            description="Член преступной группировки, убивающий мирных жителей.",
+            description="Член мафии. Ночью выбирает жертву вместе с союзниками и днём старается не выдать себя.",
             available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.DON: RoleMetadata(
@@ -75,7 +75,7 @@ class RoleRegistry:
             name="Дон",
             emoji="🎩",
             side=RoleSide.MAFIA,
-            description="Глава мафии, ищет Шерифа ночью.",
+            description="Глава мафии. Ночью может искать Шерифа и помогает команде мафии вести игру.",
             available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.SHERIFF: RoleMetadata(
@@ -83,7 +83,7 @@ class RoleRegistry:
             name="Шериф",
             emoji="👮‍♂️",
             side=RoleSide.CIVILIAN,
-            description="Блюститель закона, проверяет игроков ночью.",
+            description="Представитель закона. Ночью проверяет игроков и ищет тех, кто связан с мафией.",
             available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.SERGEANT: RoleMetadata(
@@ -91,7 +91,7 @@ class RoleRegistry:
             name="Сержант",
             emoji="🎖",
             side=RoleSide.CIVILIAN,
-            description="Помощник Шерифа, узнает результаты проверок после смерти Шерифа.",
+            description="Помощник Шерифа. Поддерживает сторону мирных и может получить важную информацию, если Шериф выбывает.",
             available_in_modes=(MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.DOCTOR: RoleMetadata(
@@ -99,7 +99,7 @@ class RoleRegistry:
             name="Доктор",
             emoji="👨‍⚕️",
             side=RoleSide.CIVILIAN,
-            description="Спасает одного игрока от смерти ночью.",
+            description="Может спасти одного игрока ночью. Правильный выбор способен изменить исход партии.",
             available_in_modes=(MatchMode.CLASSIC, MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.MANIAC: RoleMetadata(
@@ -107,7 +107,7 @@ class RoleRegistry:
             name="Маньяк",
             emoji="🔪",
             side=RoleSide.NEUTRAL,
-            description="Одиночка, убивающий всех на своем пути.",
+            description="Одиночка, играющий сам за себя. Ночью выбирает жертву и пытается пережить всех.",
             available_in_modes=(MatchMode.BIG_GAME,),
         ),
         RoleId.LOVER: RoleMetadata(
@@ -115,7 +115,7 @@ class RoleRegistry:
             name="Любовница",
             emoji="💃",
             side=RoleSide.CIVILIAN,
-            description="Блокирует ночное действие выбранного игрока.",
+            description="Ночью выбирает игрока и блокирует его действие. Один точный визит может сорвать чужой план.",
             available_in_modes=(MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.LAWYER: RoleMetadata(
@@ -123,7 +123,7 @@ class RoleRegistry:
             name="Адвокат",
             emoji="💼",
             side=RoleSide.MAFIA,
-            description="Защищает члена мафии от проверок Шерифа.",
+            description="Союзник мафии. Помогает скрывать своих от проверок и защищает команду от подозрений.",
             available_in_modes=(MatchMode.BIG_GAME,),
         ),
         RoleId.SUICIDE: RoleMetadata(
@@ -131,7 +131,7 @@ class RoleRegistry:
             name="Самоубийца",
             emoji="🧟",
             side=RoleSide.NEUTRAL,
-            description="Побеждает, если его казнят на голосовании.",
+            description="Нейтральная роль. Побеждает, если город отправит его на казнь голосованием.",
             available_in_modes=(),
         ),
         RoleId.HOBO: RoleMetadata(
@@ -139,7 +139,7 @@ class RoleRegistry:
             name="Бомж",
             emoji="🏚",
             side=RoleSide.CIVILIAN,
-            description="Следит за игроком и узнает, кто к нему заходил ночью.",
+            description="Ночью следит за выбранным игроком и может узнать, кто к нему приходил.",
             available_in_modes=(MatchMode.EXTENDED, MatchMode.BIG_GAME),
         ),
         RoleId.LUCKY: RoleMetadata(
@@ -147,7 +147,7 @@ class RoleRegistry:
             name="Везунчик",
             emoji="🍀",
             side=RoleSide.CIVILIAN,
-            description="Имеет шанс выжить после первого покушения.",
+            description="Мирный житель, которому может повезти пережить смертельную опасность.",
             available_in_modes=(MatchMode.BIG_GAME,),
         ),
         RoleId.KAMIKAZE: RoleMetadata(
@@ -155,7 +155,7 @@ class RoleRegistry:
             name="Камикадзе",
             emoji="💣",
             side=RoleSide.CIVILIAN,
-            description="Забирает с собой того, кто его убил или казнил.",
+            description="Опасный мирный житель. После смерти может забрать с собой виновника.",
             available_in_modes=(MatchMode.BIG_GAME,),
         ),
     }
