@@ -1,3 +1,4 @@
+from .game_tick import GameTickService, should_notify_phase_change
 from .mafia_chat import (
     MAFIA_CHAT_ACTIVE_PHASES,
     MAX_MAFIA_CHAT_MESSAGE_LENGTH,
@@ -29,4 +30,6 @@ __all__ = [
     "is_lobby_creator",
     "is_group_admin",
     "can_manage_game",
+    "GameTickService",
+    "should_notify_phase_change",
 ]

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from app.core.game.engine import GameEngine, GameEngineException
 from app.core.game.schemas import GameState
+from app.bot.services.game_tick import GameTickService, should_notify_phase_change
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
 from app.workers.protocols import GameNotifier
@@ -25,6 +26,11 @@ class PhaseWorker:
         self.active_game_registry = active_game_registry
         self.poll_interval_sec = poll_interval_sec
         self.notifier = notifier
+        self.tick_service = GameTickService(
+            game_engine=game_engine,
+            state_repository=state_repository,
+            notifier=notifier,
+        )
         self._is_running = False
 
     @property
@@ -56,21 +62,9 @@ class PhaseWorker:
                         game_id,
                         state.phase_end_at,
                     )
-                    old_state = state
-                    new_state = await self.game_engine.tick_game(game_id)
-                    advanced_count += 1
-
-                    if self.notifier:
-                        if _should_notify_phase_change(old_state, new_state):
-                            try:
-                                await self.notifier.notify_phase_change(
-                                    old_state, new_state
-                                )
-                            except Exception:
-                                logger.exception(
-                                    "Error notifying phase change for game %s",
-                                    game_id,
-                                )
+                    new_state = await self.tick_service.advance_game(game_id)
+                    if new_state is not None:
+                        advanced_count += 1
             except GameEngineException as e:
                 logger.error("Error advancing game %s: %s", game_id, e)
             except Exception as e:
@@ -106,7 +100,4 @@ def _should_notify_phase_change(
     """
     Returns True if we should notify about a phase change or significant event.
     """
-    if old_state is None:
-        return True
-
-    return old_state.phase != new_state.phase
+    return should_notify_phase_change(old_state, new_state)
