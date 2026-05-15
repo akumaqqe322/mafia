@@ -46,16 +46,36 @@ def get_newly_dead_players(
     return newly_dead
 
 
+def _format_winner_side(winner_side: str | None) -> str:
+    """Formats the winner side into a Russian display name."""
+    if winner_side is None:
+        return "Победитель не определён."
+
+    mapping = {
+        "mafia": "Мафия",
+        "civilian": "Мирные жители",
+        "civilians": "Мирные жители",
+        "neutral": "Нейтральная сторона",
+        "admin_stopped": "Игра остановлена администратором",
+    }
+
+    return mapping.get(winner_side, html.escape(winner_side))
+
+
 def render_night_started(state: GameState, dm_failed: bool = False) -> str:
     """
     Renders message for NIGHT started.
     """
     _ = state
-    msg = "<b>🌙 Наступила ночь.</b>\n\nВсе активные роли получили инструкции в личные сообщения."
+    msg = (
+        "<b>🌙 Город засыпает.</b>\n\n"
+        "Просыпаются те, кто действует ночью.\n"
+        "Ждём их решений."
+    )
     if dm_failed:
         msg += (
-            "\n\n⚠️ Некоторым игрокам не удалось отправить личное сообщение. "
-            "Пожалуйста, убедитесь, что вы начали диалог с ботом."
+            "\n\n<i>Некоторым игрокам не удалось отправить личные сообщения. "
+            "Проверьте, что они открыли ЛС с ботом.</i>"
         )
     return msg
 
@@ -67,19 +87,19 @@ def render_day_started(
     """
     Renders message for DAY started.
     """
-    msg = "<b>☀️ Наступил день!</b>\n\n"
+    msg = "<b>☀️ Утро в городе.</b>\n\n"
 
     if old_state:
         newly_dead = get_newly_dead_players(old_state, new_state)
         if newly_dead:
-            dead_names = ", ".join(
-                f"<b>{html.escape(p.display_name)}</b>" for p in newly_dead
+            dead_list = "\n".join(
+                f"• <b>{html.escape(p.display_name)}</b>" for p in newly_dead
             )
-            msg += f"Сегодня ночью нас покинули: {dead_names}"
+            msg += f"Этой ночью не все проснулись:\n{dead_list}"
         else:
-            msg += "Город проснулся без потерь. Все живы!"
+            msg += "Ночь прошла спокойно. Все жители проснулись."
     else:
-        msg += "Город проснулся."
+        msg += "Жители просыпаются и начинают обсуждение."
 
     return msg
 
@@ -90,9 +110,8 @@ def render_voting_started(state: GameState) -> str:
     """
     _ = state
     return (
-        "<b>⚖️ Началось голосование!</b>\n\n"
-        "Обсудите события и выберите, кто покинет город сегодня. "
-        "Само голосование будет доступно в ближайшее время."
+        "<b>⚖️ Город собирается на голосование.</b>\n\n"
+        "Пора решить, кто вызывает больше всего подозрений."
     )
 
 
@@ -100,11 +119,11 @@ def render_game_finished(state: GameState) -> str:
     """
     Renders message for FINISHED.
     """
-    winner = state.winner_side
-    if winner:
-        winner_text = f"Победила сторона: <b>{html.escape(winner)}</b>"
+    formatted_winner = _format_winner_side(state.winner_side)
+    if state.winner_side:
+        winner_text = f"Победу одержали: <b>{formatted_winner}</b>"
     else:
-        winner_text = "Победитель не определён."
+        winner_text = formatted_winner
 
     alive_players = [p for p in state.players if p.is_alive]
     dead_players = [p for p in state.players if not p.is_alive]
@@ -113,7 +132,7 @@ def render_game_finished(state: GameState) -> str:
     dead_section = _render_players_section("🔴 <b>Выбывшие:</b>", dead_players)
 
     return (
-        f"<b>🏁 Игра окончена!</b>\n\n"
+        f"<b>🏁 Партия завершена!</b>\n\n"
         f"{winner_text}\n\n"
         f"{alive_section}\n\n"
         f"{dead_section}"

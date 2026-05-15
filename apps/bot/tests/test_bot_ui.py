@@ -463,9 +463,10 @@ def test_render_day_started_with_deaths_escapes_names() -> None:
         ],
     )
     output = render_day_started(old_state, new_state)
-    assert "☀️ Наступил день" in output
+    assert "☀️ Утро в городе" in output
     assert "&lt;Evil&gt;" in output
     assert "<Evil>" not in output
+    assert "не все проснулись" in output
 
 
 def test_render_day_started_no_deaths() -> None:
@@ -482,6 +483,7 @@ def test_render_day_started_no_deaths() -> None:
     )
     output = render_day_started(state, state)
     assert "без потерь" in output
+    assert "Все жители проснулись" in output
 
 
 def test_render_day_started_does_not_reveal_roles() -> None:
@@ -521,7 +523,7 @@ def test_render_day_started_does_not_reveal_roles() -> None:
     assert "Мафия" not in output
 
 
-def test_render_night_started_contains_phase_text() -> None:
+def test_render_night_started_text_is_polished() -> None:
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
@@ -529,11 +531,11 @@ def test_render_night_started_contains_phase_text() -> None:
         phase_started_at=datetime.now(timezone.utc),
     )
     output = render_night_started(state)
-    assert "🌙 Наступила ночь" in output
-    assert "инструкции в личные сообщения" in output
+    assert "🌙 Город засыпает" in output
+    assert "Просыпаются те, кто действует ночью" in output
 
 
-def test_render_voting_started_contains_phase_text() -> None:
+def test_render_voting_started_polished() -> None:
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
@@ -541,10 +543,11 @@ def test_render_voting_started_contains_phase_text() -> None:
         phase_started_at=datetime.now(timezone.utc),
     )
     output = render_voting_started(state)
-    assert "⚖️ Началось голосование" in output
+    assert "⚖️ Город собирается на голосование" in output
+    assert "доступно в ближайшее время" not in output
 
 
-def test_render_game_finished_shows_winner_side() -> None:
+def test_render_game_finished_maps_winner_side_mafia() -> None:
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
@@ -554,8 +557,36 @@ def test_render_game_finished_shows_winner_side() -> None:
         players=[],
     )
     output = render_game_finished(state)
-    assert "🏁 Игра окончена" in output
-    assert "mafia" in output
+    assert "🏁 Партия завершена" in output
+    assert "Мафия" in output
+    assert "Победу одержали" in output
+
+
+def test_render_game_finished_maps_winner_side_civilian() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        winner_side="civilian",
+        players=[],
+    )
+    output = render_game_finished(state)
+    assert "Мирные жители" in output
+
+
+def test_render_game_finished_handles_unknown_winner_side_safely() -> None:
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        winner_side="<script>",
+        players=[],
+    )
+    output = render_game_finished(state)
+    assert "&lt;script&gt;" in output
+    assert "<script>" not in output
 
 
 def test_render_game_finished_lists_alive_and_dead_players() -> None:
