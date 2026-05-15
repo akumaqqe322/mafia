@@ -3,8 +3,8 @@ from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.keyboards.day_vote import build_day_vote_keyboard
-from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.check_result import render_check_result
+from app.bot.renderers.day_vote import render_day_vote_started
 from app.bot.renderers.day_vote_result import render_day_vote_result
 from app.bot.renderers.phase import (
     render_day_started,
