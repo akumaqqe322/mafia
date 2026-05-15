@@ -1,10 +1,11 @@
-from aiogram import F, Router, Bot, types
+from aiogram import Bot, F, Router, types
+
 from app.bot.callbacks import AdminAction, AdminCallback
 from app.bot.keyboards.admin_panel import build_admin_panel_keyboard
 from app.bot.renderers.admin_panel import render_admin_panel
 from app.bot.services.permissions import is_group_admin
-from app.infrastructure.container import Container
 from app.core.game.schemas import GameState
+from app.infrastructure.container import Container
 
 router = Router()
 
@@ -95,8 +96,7 @@ async def handle_admin_callback(
         return
 
     if parsed.action != AdminAction.REFRESH:
-        # In this step, only REFRESH is implemented.
-        # Other actions (BACK, TICK, FINISH, KICK_LIST, KICK) will receive this answer.
+        # Destructive admin actions are intentionally disabled in this MVP step.
         await callback.answer(
             "Это действие пока недоступно.",
             show_alert=True,
