@@ -1,10 +1,16 @@
 from aiogram import Bot, F, Router, types
 
 from app.bot.callbacks import AdminAction, AdminCallback
-from app.bot.keyboards.admin_panel import build_admin_panel_keyboard
-from app.bot.renderers.admin_panel import render_admin_panel
+from app.bot.keyboards.admin_panel import (
+    build_admin_kick_keyboard,
+    build_admin_panel_keyboard,
+)
+from app.bot.renderers.admin_panel import (
+    render_admin_kick_panel,
+    render_admin_panel,
+)
 from app.bot.services.permissions import is_group_admin
-from app.core.game.schemas import GameState
+from app.core.game.schemas import GamePhase, GameState
 from app.infrastructure.container import Container
 
 router = Router()
@@ -95,20 +101,51 @@ async def handle_admin_callback(
         )
         return
 
-    if parsed.action != AdminAction.REFRESH:
-        # Destructive admin actions are intentionally disabled in this MVP step.
-        await callback.answer(
-            "Это действие пока недоступно.",
-            show_alert=True,
-        )
-        return
-
     state = await _get_active_state_by_chat(container, message.chat.id)
 
-    await message.edit_text(
-        render_admin_panel(state),
-        parse_mode="HTML",
-        reply_markup=build_admin_panel_keyboard(state),
-    )
+    if parsed.action in (AdminAction.REFRESH, AdminAction.BACK):
+        await message.edit_text(
+            render_admin_panel(state),
+            parse_mode="HTML",
+            reply_markup=build_admin_panel_keyboard(state),
+        )
+        await callback.answer("Панель обновлена.", show_alert=False)
+        return
 
-    await callback.answer("Панель обновлена.", show_alert=False)
+    if parsed.action == AdminAction.KICK_LIST:
+        if state is None:
+            await message.edit_text(
+                render_admin_panel(None),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(None),
+            )
+            await callback.answer("Активная игра не найдена.", show_alert=True)
+            return
+
+        if state.phase != GamePhase.LOBBY:
+            await callback.answer(
+                "Кик игроков доступен только до начала игры.",
+                show_alert=True,
+            )
+            return
+
+        if parsed.version != state.version:
+            await callback.answer(
+                "Панель устарела. Обновите /admin_game.",
+                show_alert=True,
+            )
+            return
+
+        await message.edit_text(
+            render_admin_kick_panel(state),
+            parse_mode="HTML",
+            reply_markup=build_admin_kick_keyboard(state),
+        )
+        await callback.answer("Выберите игрока.", show_alert=False)
+        return
+
+    # Destructive admin actions are intentionally disabled in this MVP step.
+    await callback.answer(
+        "Это действие пока недоступно.",
+        show_alert=True,
+    )
