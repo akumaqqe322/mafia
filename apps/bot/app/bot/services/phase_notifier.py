@@ -4,6 +4,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.keyboards.day_vote import build_day_vote_keyboard
 from app.bot.renderers.day_vote import render_day_vote_started
+from app.bot.renderers.check_result import render_check_result
 from app.bot.renderers.day_vote_result import render_day_vote_result
 from app.bot.renderers.phase import (
     render_day_started,
@@ -11,6 +12,7 @@ from app.bot.renderers.phase import (
     render_night_started,
 )
 from app.bot.services.night_actions import send_night_action_menus
+from app.core.game.events import EventVisibility, GameEventType
 from app.core.game.schemas import GamePhase, GameState
 from app.infrastructure.repositories.phase_notification_repository import PhaseNotificationRepository
 from app.infrastructure.repositories.player_game_repository import PlayerGameRepository
@@ -57,6 +59,9 @@ class TelegramGameNotifier:
         # Send day vote result summary if we just left VOTING phase
         await self._send_day_vote_result_if_needed(old_state, new_state)
 
+        # Send private check results (e.g. for Sheriff/Don) if any in last_events
+        await self._send_private_check_results(new_state)
+
         phase = new_state.phase
 
         if phase == GamePhase.NIGHT:
@@ -95,6 +100,42 @@ class TelegramGameNotifier:
             # We don't catch exceptions here because clear_active_game (Redis)
             # is expected to be stable. Error in one player won't block others.
             await self.player_game_repository.clear_active_game(player.telegram_id)
+
+    async def _send_private_check_results(
+        self,
+        state: GameState,
+    ) -> None:
+        """
+        Sends private check results (Sheriff/Don) to the corresponding players.
+        """
+        for event in state.last_events:
+            if event.type != GameEventType.CHECK_RESULT:
+                continue
+            if event.visibility != EventVisibility.PRIVATE:
+                continue
+            if event.recipient_user_id is None:
+                continue
+
+            recipient = next(
+                (p for p in state.players if p.user_id == event.recipient_user_id),
+                None,
+            )
+            if recipient is None:
+                continue
+
+            text = render_check_result(state, event)
+            if text is None:
+                continue
+
+            try:
+                await self.bot.send_message(
+                    chat_id=recipient.telegram_id,
+                    text=text,
+                    parse_mode="HTML",
+                )
+            except (TelegramForbiddenError, TelegramAPIError):
+                # We skip players who blocked the bot or other API errors
+                continue
 
     async def _send_day_vote_result_if_needed(
         self,
