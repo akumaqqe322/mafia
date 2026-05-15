@@ -532,25 +532,112 @@ def test_render_game_finished_shows_winner_side() -> None:
         telegram_chat_id=1,
         phase_started_at=datetime.now(timezone.utc),
         winner_side="mafia",
+        players=[],
     )
     output = render_game_finished(state)
     assert "🏁 Игра окончена" in output
     assert "mafia" in output
 
 
-def test_render_game_finished_does_not_reveal_roles() -> None:
+def test_render_game_finished_lists_alive_and_dead_players() -> None:
+    u1, u2 = uuid4(), uuid4()
+    p1 = make_player(role=RoleId.CIVILIAN.value, display_name="Alice", is_alive=True)
+    p1.user_id = u1
+    p2 = make_player(role=RoleId.MAFIA.value, display_name="Bob", is_alive=False)
+    p2.user_id = u2
+
     state = GameState(
         game_id=uuid4(),
         chat_id=uuid4(),
         telegram_chat_id=1,
         phase_started_at=datetime.now(timezone.utc),
-        winner_side="mafia",
-        players=[
-            PlayerState(user_id=uuid4(), telegram_id=1, display_name="A", role="don")
-        ],
+        winner_side="civilian",
+        players=[p1, p2],
+    )
+
+    output = render_game_finished(state)
+    assert "Выжившие" in output
+    assert "Alice" in output
+    assert "Выбывшие" in output
+    assert "Bob" in output
+
+
+def test_render_game_finished_reveals_roles_after_finish() -> None:
+    p1 = make_player(role=RoleId.SHERIFF.value, display_name="Alice", is_alive=True)
+    p2 = make_player(role=RoleId.MAFIA.value, display_name="Bob", is_alive=False)
+
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        winner_side="civilian",
+        players=[p1, p2],
+    )
+
+    output = render_game_finished(state)
+    # Check for role names (assuming standard names in RoleId/RoleRegistry)
+    assert "Шериф" in output
+    assert "Мафия" in output
+
+
+def test_render_game_finished_handles_empty_sections() -> None:
+    p1 = make_player(role=RoleId.CIVILIAN.value, display_name="Alice", is_alive=True)
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p1],
     )
     output = render_game_finished(state)
-    assert "don" not in output
+    assert "Выбывшие" in output
+    assert "— нет" in output
+
+
+def test_render_game_finished_escapes_player_names() -> None:
+    p1 = make_player(None, display_name="<script>Alice</script>")
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p1],
+    )
+    output = render_game_finished(state)
+    assert "&lt;script&gt;Alice&lt;/script&gt;" in output
+    assert "<script>" not in output
+
+
+def test_render_game_finished_handles_unknown_role() -> None:
+    p1 = make_player(role="broken_role", display_name="Alice")
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p1],
+    )
+    output = render_game_finished(state)
+    assert "роль неизвестна" in output
+    assert "broken_role" not in output
+
+
+def test_render_game_finished_does_not_reveal_ids() -> None:
+    uid = uuid4()
+    p1 = make_player(role=RoleId.MAFIA.value, display_name="Alice")
+    p1.user_id = uid
+    state = GameState(
+        game_id=uuid4(),
+        chat_id=uuid4(),
+        telegram_chat_id=1,
+        phase_started_at=datetime.now(timezone.utc),
+        players=[p1],
+    )
+    output = render_game_finished(state)
+    assert str(uid) not in output
+    assert str(state.game_id) not in output
+    assert str(state.chat_id) not in output
 
 
 def make_player(

@@ -1,6 +1,31 @@
 import html
 
+from app.core.game.roles import RoleId, RoleRegistry
 from app.core.game.schemas import GameState, PlayerState
+
+
+def _format_player_with_role(player: PlayerState) -> str:
+    """Formats a player's name with their revealed role and emoji."""
+    name = html.escape(player.display_name)
+    if player.role is None:
+        return f"<b>{name}</b> — роль неизвестна"
+
+    try:
+        role_id = RoleId(player.role)
+        role = RoleRegistry.get(role_id)
+        role_text = f"{role.emoji} {html.escape(role.name)}"
+        return f"<b>{name}</b> — {role_text}"
+    except ValueError:
+        return f"<b>{name}</b> — роль неизвестна"
+
+
+def _render_players_section(title: str, players: list[PlayerState]) -> str:
+    """Renders a section of players (e.g., survivors or deceased)."""
+    if not players:
+        return f"{title}\n— нет"
+
+    lines = [f"• {_format_player_with_role(p)}" for p in players]
+    return f"{title}\n" + "\n".join(lines)
 
 
 def get_newly_dead_players(
@@ -81,4 +106,15 @@ def render_game_finished(state: GameState) -> str:
     else:
         winner_text = "Победитель не определён."
 
-    return f"<b>🏁 Игра окончена!</b>\n\n{winner_text}"
+    alive_players = [p for p in state.players if p.is_alive]
+    dead_players = [p for p in state.players if not p.is_alive]
+
+    alive_section = _render_players_section("🟢 <b>Выжившие:</b>", alive_players)
+    dead_section = _render_players_section("🔴 <b>Выбывшие:</b>", dead_players)
+
+    return (
+        f"<b>🏁 Игра окончена!</b>\n\n"
+        f"{winner_text}\n\n"
+        f"{alive_section}\n\n"
+        f"{dead_section}"
+    )
