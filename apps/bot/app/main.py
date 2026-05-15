@@ -5,7 +5,7 @@ import structlog
 from aiogram import Bot, Dispatcher
 
 from app.bot.routers import router as bot_router
-from app.bot.services import TelegramGameNotifier
+from app.bot.services import GameTickService, TelegramGameNotifier
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.infrastructure.container import Container
@@ -39,11 +39,19 @@ async def main() -> None:
         phase_notification_repository=container.phase_notification_repository,
         game_repository=container.game_repository,
     )
+    game_tick_service = GameTickService(
+        game_engine=container.game_engine,
+        state_repository=container.game_repository,
+        notifier=notifier,
+    )
+    dp["game_tick_service"] = game_tick_service
+
     phase_worker = PhaseWorker(
         game_engine=container.game_engine,
         state_repository=container.game_repository,
         active_game_registry=container.active_game_registry,
         notifier=notifier,
+        tick_service=game_tick_service,
     )
 
     log.info("Starting bot...", environment=settings.ENVIRONMENT)

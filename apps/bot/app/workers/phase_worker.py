@@ -20,13 +20,14 @@ class PhaseWorker:
         active_game_registry: ActiveGameRegistry,
         poll_interval_sec: float = 1.0,
         notifier: GameNotifier | None = None,
+        tick_service: GameTickService | None = None,
     ) -> None:
         self.game_engine = game_engine
         self.state_repository = state_repository
         self.active_game_registry = active_game_registry
         self.poll_interval_sec = poll_interval_sec
         self.notifier = notifier
-        self.tick_service = GameTickService(
+        self.tick_service = tick_service or GameTickService(
             game_engine=game_engine,
             state_repository=state_repository,
             notifier=notifier,
