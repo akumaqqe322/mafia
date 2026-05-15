@@ -119,8 +119,8 @@ async def cmd_start(
 
     if not command.args or not command.args.startswith("join_"):
         await message.answer(
-            "Welcome to Mafia Bot! 🕵️‍♂️\n\n"
-            "To start a game, add me to a group and type /game."
+            "Привет! Я бот для игры в Мафию 🕵️‍♂️\n\n"
+            "Чтобы начать игру, добавь меня в групповой чат и напиши /game."
         )
         return
 
@@ -129,7 +129,7 @@ async def cmd_start(
     game_id = await container.game_invite_repository.get_game_id(token)
 
     if not game_id:
-        await message.answer("This invite link is invalid or has expired.")
+        await message.answer("Ссылка-приглашение недействительна или устарела.")
         return
 
     # Fast pre-check before DB session
@@ -167,7 +167,7 @@ async def cmd_start(
             display_name=display_name,
         )
 
-        await message.answer("✅ You joined the game!")
+        await message.answer("✅ Ты вступил в игру!")
 
         # Update lobby message in group if exists
         if state.lobby_message_id and state.phase == GamePhase.LOBBY:
@@ -190,13 +190,13 @@ async def cmd_start(
                     pass
 
     except PlayerAlreadyInGameError:
-        await message.answer("You are already in this game!")
+        await message.answer("Ты уже участвуешь в этой игре.")
     except GameFullError:
-        await message.answer("Sorry, this game is full.")
+        await message.answer("Лобби уже заполнено.")
     except InvalidGamePhaseError:
-        await message.answer("This game has already started or finished.")
+        await message.answer("Эта игра уже началась или завершилась.")
     except GameNotFoundError:
-        await message.answer("Game not found.")
+        await message.answer("Игра не найдена.")
 
 
 @router.callback_query(F.data.startswith(NightActionCallback.PREFIX))
