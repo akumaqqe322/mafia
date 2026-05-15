@@ -309,12 +309,15 @@ def test_night_action_callback_build_parse_valid() -> None:
 
 def test_night_action_callback_parse_invalid() -> None:
     assert NightActionCallback.parse("invalid") is None
-    assert NightActionCallback.parse("na:kill:123") is None  # Old format
     assert NightActionCallback.parse("na:x:kill:123") is None
     assert NightActionCallback.parse("na:5:unknown:123") is None
     assert NightActionCallback.parse("na:5:kill:abc") is None
     assert NightActionCallback.parse("na:5:kill") is None
     assert NightActionCallback.parse("na:5:kill:123:extra") is None
+
+
+def test_night_action_callback_parse_rejects_old_format() -> None:
+    assert NightActionCallback.parse("na:kill:123") is None
 
 
 def test_available_targets_mafia_kill_excludes_teammates() -> None:
