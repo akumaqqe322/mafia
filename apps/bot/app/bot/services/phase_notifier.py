@@ -16,6 +16,7 @@ from app.core.game.events import EventVisibility, GameEventType
 from app.core.game.schemas import GamePhase, GameState
 from app.infrastructure.repositories.phase_notification_repository import PhaseNotificationRepository
 from app.infrastructure.repositories.player_game_repository import PlayerGameRepository
+from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
 
 
 class TelegramGameNotifier:
@@ -28,10 +29,12 @@ class TelegramGameNotifier:
         bot: Bot,
         player_game_repository: PlayerGameRepository,
         phase_notification_repository: PhaseNotificationRepository,
+        game_repository: RedisGameStateRepository,
     ) -> None:
         self.bot = bot
         self.player_game_repository = player_game_repository
         self.phase_notification_repository = phase_notification_repository
+        self.game_repository = game_repository
 
     async def notify_phase_change(
         self,
@@ -78,13 +81,7 @@ class TelegramGameNotifier:
             await self._send_group_message(new_state, text)
 
         elif phase == GamePhase.VOTING:
-            text = render_day_vote_started(new_state)
-            keyboard = build_day_vote_keyboard(new_state)
-            await self._send_group_message(
-                new_state,
-                text,
-                reply_markup=keyboard,
-            )
+            await self._send_voting_panel(new_state)
 
         elif phase == GamePhase.FINISHED:
             # 1. Notify group
@@ -155,6 +152,27 @@ class TelegramGameNotifier:
         text = render_day_vote_result(new_state)
         if text:
             await self._send_group_message(new_state, text)
+
+    async def _send_voting_panel(self, state: GameState) -> None:
+        """
+        Sends the voting panel to the group chat and stores message_id in state.
+        """
+        text = render_day_vote_started(state)
+        keyboard = build_day_vote_keyboard(state)
+
+        try:
+            sent = await self.bot.send_message(
+                chat_id=state.telegram_chat_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+        except (TelegramForbiddenError, TelegramAPIError):
+            return
+
+        # Save message ID for future cleanup
+        state.voting_message_id = sent.message_id
+        await self.game_repository.save(state)
 
     async def _send_group_message(
         self,

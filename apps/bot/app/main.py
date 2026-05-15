@@ -37,6 +37,7 @@ async def main() -> None:
         bot=bot,
         player_game_repository=container.player_game_repository,
         phase_notification_repository=container.phase_notification_repository,
+        game_repository=container.game_repository,
     )
     phase_worker = PhaseWorker(
         game_engine=container.game_engine,
