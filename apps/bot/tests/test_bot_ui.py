@@ -273,7 +273,11 @@ def test_build_night_action_keyboard() -> None:
     buttons = [b for row in kb.inline_keyboard for b in row]
     assert len(buttons) == 1
     assert buttons[0].text == "Bob"
-    assert buttons[0].callback_data == NightActionCallback.build(NightActionType.KILL, 789)
+    assert buttons[0].callback_data == NightActionCallback.build(
+        state.version,
+        NightActionType.KILL,
+        789,
+    )
 
     # Doctor heal action (can heal self)
     kb = build_night_action_keyboard(state, actor, NightActionType.HEAL)
@@ -282,23 +286,35 @@ def test_build_night_action_keyboard() -> None:
 
 
 def test_night_action_callback_encoding_length() -> None:
-    # Test that na:<action_type>:<telegram_id> matches 64 bytes
+    # Test that na:<version>:<action_type>:<telegram_id> matches 64 bytes
     # telegram_id can be up to 64 bits (up to 20 digits)
-    cb_data = NightActionCallback.build(NightActionType.PROTECT, 12345678901234567890)
+    # version can also be large
+    cb_data = NightActionCallback.build(
+        123456789,
+        NightActionType.PROTECT,
+        12345678901234567890,
+    )
     assert len(cb_data.encode("utf-8")) <= 64
 
 
 def test_night_action_callback_build_parse_valid() -> None:
-    cb_data = NightActionCallback.build(NightActionType.KILL, 123456789)
-    assert cb_data == "na:kill:123456789"
+    cb_data = NightActionCallback.build(7, NightActionType.KILL, 123456789)
+    assert cb_data == "na:7:kill:123456789"
     parsed = NightActionCallback.parse(cb_data)
-    assert parsed == (NightActionType.KILL, 123456789)
+    assert parsed is not None
+    assert parsed.version == 7
+    assert parsed.action_type == NightActionType.KILL
+    assert parsed.target_telegram_id == 123456789
 
 
 def test_night_action_callback_parse_invalid() -> None:
     assert NightActionCallback.parse("invalid") is None
-    assert NightActionCallback.parse("na:invalid:123") is None
-    assert NightActionCallback.parse("na:kill:abc") is None
+    assert NightActionCallback.parse("na:kill:123") is None  # Old format
+    assert NightActionCallback.parse("na:x:kill:123") is None
+    assert NightActionCallback.parse("na:5:unknown:123") is None
+    assert NightActionCallback.parse("na:5:kill:abc") is None
+    assert NightActionCallback.parse("na:5:kill") is None
+    assert NightActionCallback.parse("na:5:kill:123:extra") is None
 
 
 def test_available_targets_mafia_kill_excludes_teammates() -> None:

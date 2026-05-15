@@ -212,7 +212,8 @@ async def handle_night_action(
         await callback.answer("Недопустимая кнопка", show_alert=True)
         return
 
-    action_type, target_telegram_id = parsed
+    action_type = parsed.action_type
+    target_telegram_id = parsed.target_telegram_id
 
     # 1. Resolve game
     game_id = await container.player_game_repository.get_active_game(
@@ -230,6 +231,13 @@ async def handle_night_action(
 
     if state.phase != GamePhase.NIGHT:
         await callback.answer("Ночь уже закончилась.", show_alert=True)
+        return
+
+    if parsed.version != state.version:
+        await callback.answer(
+            "Это ночное действие уже устарело. Используйте актуальное меню.",
+            show_alert=True,
+        )
         return
 
     actor = next(

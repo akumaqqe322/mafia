@@ -51,7 +51,11 @@ def build_night_action_keyboard(
     targets = get_available_night_targets(state, actor, action_type)
 
     for target in targets:
-        callback_data = NightActionCallback.build(action_type, target.telegram_id)
+        callback_data = NightActionCallback.build(
+            version=state.version,
+            action_type=action_type,
+            target_id=target.telegram_id,
+        )
 
         builder.button(
             text=target.display_name,
