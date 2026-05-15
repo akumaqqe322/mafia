@@ -51,3 +51,22 @@ class GameTickService:
                 logger.exception("Error notifying phase change for game %s", game_id)
 
         return new_state
+
+    async def admin_finish_game(self, game_id: UUID) -> GameState | None:
+        """
+        Forcibly finishes the game by administrator.
+        Returns the new state or None if old state missing.
+        """
+        old_state = await self.state_repository.get(game_id)
+        if old_state is None:
+            return None
+
+        new_state = await self.game_engine.force_finish_game(game_id)
+
+        if self.notifier and should_notify_phase_change(old_state, new_state):
+            try:
+                await self.notifier.notify_phase_change(old_state, new_state)
+            except Exception:
+                logger.exception("Error notifying forced finish for game %s", game_id)
+
+        return new_state
