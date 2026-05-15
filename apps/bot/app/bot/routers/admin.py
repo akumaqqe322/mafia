@@ -250,6 +250,74 @@ async def handle_admin_callback(
             )
         return
 
+    if parsed.action == AdminAction.FINISH:
+        if state is None:
+            await message.edit_text(
+                render_admin_panel(None),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(None),
+            )
+            await callback.answer("Активная игра не найдена.", show_alert=True)
+            return
+
+        if state.phase == GamePhase.LOBBY:
+            await callback.answer(
+                "Лобби можно отменить через кнопку отмены.",
+                show_alert=True,
+            )
+            return
+
+        if state.phase == GamePhase.FINISHED:
+            await callback.answer(
+                "Игра уже завершена.",
+                show_alert=True,
+            )
+            return
+
+        if parsed.version != state.version:
+            await callback.answer(
+                "Панель устарела. Обновите /admin_game.",
+                show_alert=True,
+            )
+            return
+
+        active_game_id = await container.active_game_registry.get_active_game_by_chat(
+            message.chat.id
+        )
+        if not active_game_id:
+            await message.edit_text(
+                render_admin_panel(None),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(None),
+            )
+            await callback.answer("Активная игра не найдена.", show_alert=True)
+            return
+
+        try:
+            new_state = await game_tick_service.admin_finish_game(active_game_id)
+
+            if new_state is None:
+                await message.edit_text(
+                    render_admin_panel(None),
+                    parse_mode="HTML",
+                    reply_markup=build_admin_panel_keyboard(None),
+                )
+                await callback.answer("Игра не найдена.", show_alert=True)
+                return
+
+            await message.edit_text(
+                render_admin_panel(new_state),
+                parse_mode="HTML",
+                reply_markup=build_admin_panel_keyboard(new_state),
+            )
+            await callback.answer("Игра остановлена.", show_alert=False)
+        except GameEngineException:
+            await callback.answer(
+                "Не удалось остановить игру.",
+                show_alert=True,
+            )
+        return
+
     if parsed.action == AdminAction.KICK:
         if state is None:
             await message.edit_text(
@@ -328,7 +396,7 @@ async def handle_admin_callback(
         )
         return
 
-    # Emergency finish remains intentionally disabled in this MVP step.
+    # Unknown or unsupported admin actions are rejected safely.
     await callback.answer(
         "Это действие пока недоступно.",
         show_alert=True,
