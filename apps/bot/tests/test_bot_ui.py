@@ -482,7 +482,7 @@ def test_render_day_started_no_deaths() -> None:
         ],
     )
     output = render_day_started(state, state)
-    assert "без потерь" in output
+    assert "Ночь прошла спокойно" in output
     assert "Все жители проснулись" in output
 
 
