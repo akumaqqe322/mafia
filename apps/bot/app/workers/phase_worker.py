@@ -2,9 +2,9 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from app.bot.services.game_tick import GameTickService, should_notify_phase_change
 from app.core.game.engine import GameEngine, GameEngineException
 from app.core.game.schemas import GameState
-from app.bot.services.game_tick import GameTickService, should_notify_phase_change
 from app.infrastructure.repositories.active_game_registry import ActiveGameRegistry
 from app.infrastructure.repositories.redis_game_repository import RedisGameStateRepository
 from app.workers.protocols import GameNotifier
